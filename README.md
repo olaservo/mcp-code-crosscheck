@@ -184,24 +184,6 @@ Use the provided prompts for manual code reviews:
 
 **Recommendation**: Consider this as one tool among many for code review, not a replacement for human judgment or comprehensive testing.
 
-## Model Selection Strategy
-
-The server implements a regex-based overlap detection system to attempt diverse model selection:
-
-### Three-Tier Detection System
-
-1. **Base Model Detection**: Uses regex patterns to identify core model families
-   - Pattern: `/^(gpt|claude|gemini|llama|mistral|phi|codestral|deepseek|qwen)/i`
-   - Examples: "gpt-4-turbo" and "gpt-3.5" both match "gpt"
-
-2. **Provider Detection**: Identifies models from the same company/provider
-   - Pattern: `/(openai|anthropic|google|meta|microsoft|mistral|deepseek|alibaba)/i`
-   - Prevents using multiple models from the same provider
-
-3. **Significant Substring Matching**: Finds shared meaningful text patterns
-   - Matches substrings of 4+ characters to catch edge cases
-   - Ensures comprehensive overlap detection
-
 ## Architecture
 
 ```mermaid
