@@ -177,24 +177,6 @@ Use the provided prompts for manual code reviews:
 
 ## Limitations and Considerations
 
-This experimental approach has several important limitations:
-
-### Effectiveness Uncertainty
-- **Unproven in practice**: While research suggests self-bias exists, the practical benefit of cross-model review for code quality is not established
-- **Variable results**: Effectiveness likely depends on specific model combinations, code complexity, and review criteria
-- **No guarantee of improvement**: Different models may simply have different biases rather than providing objectively better reviews
-
-### Technical Limitations
-- **Increased latency**: Requires additional API calls and model switching
-- **Higher costs**: Uses more computational resources than single-model review
-- **Client dependency**: Relies on MCP client supporting model selection and sampling
-- **Model availability**: Limited by which models the client has access to
-
-### Scope Limitations
-- **Pattern matching**: Model family detection is based on naming patterns and may misclassify models
-- **Context loss**: Different models may lack context about the original code generation process
-- **Inconsistent standards**: Different models may apply different coding standards or preferences
-
 ### When This Approach May Not Help
 - **Simple code**: For straightforward implementations, cross-model review may add complexity without benefit
 - **Domain-specific code**: Models may lack specialized knowledge regardless of which one reviews
@@ -220,34 +202,6 @@ The server implements a regex-based overlap detection system to attempt diverse 
    - Matches substrings of 4+ characters to catch edge cases
    - Ensures comprehensive overlap detection
 
-### Client Guidance Strategy
-
-- **Primary Method**: Metadata with `excludeModel` and `excludeFamily` for smart clients
-- **Fallback Method**: Hints array with broad model suggestions for simpler clients
-- **Dual Approach**: Both methods included in every request for maximum compatibility
-
-### Overlap Detection Examples
-
-**Models that WILL be excluded (overlapping):**
-- `gpt-4` ↔ `gpt-3.5-turbo` (same base: "gpt")
-- `claude-3-sonnet` ↔ `claude-3-haiku` (same base: "claude")
-- `gemini-1.5-pro` ↔ `gemini-1.0-pro` (same base: "gemini")
-- `gpt-4-turbo` ↔ `gpt-4o` (same base: "gpt")
-
-**Models that will NOT be excluded (diverse):**
-- `gpt-4` ↔ `claude-3-sonnet` (different bases: "gpt" vs "claude")
-- `claude-3-haiku` ↔ `gemini-1.5-pro` (different bases: "claude" vs "gemini")
-- `llama-2-70b` ↔ `gpt-4` (different bases: "llama" vs "gpt")
-
-### Supported Model Patterns
-
-- **OpenAI**: gpt, gpt-3, gpt-4, gpt-4o, etc.
-- **Anthropic**: claude, claude-3, claude-3-sonnet, etc.
-- **Google**: gemini, gemini-1.5, gemini-pro, etc.
-- **Meta**: llama, llama-2, llama-3, etc.
-- **Mistral**: mistral, codestral, etc.
-- **Others**: phi, deepseek, qwen, and more
-
 ## Architecture
 
 ```mermaid
@@ -268,24 +222,6 @@ sequenceDiagram
     
     Note over MCP Server: Parse and validate results
     MCP Server-->>Client: Structured review output
-```
-
-## Development
-
-### Scripts
-
-- `npm run build` - Compile TypeScript
-- `npm run dev` - Watch mode compilation
-- `npm start` - Run the server
-
-### Project Structure
-
-```
-src/
-├── index.ts          # Main entry point (STDIO transport)
-├── server.ts         # Core MCP server implementation
-├── types.ts          # TypeScript type definitions
-└── utils.ts          # Utility functions for model selection and prompts
 ```
 
 ## Related
