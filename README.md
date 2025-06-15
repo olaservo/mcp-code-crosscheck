@@ -288,42 +288,6 @@ src/
 └── utils.ts          # Utility functions for model selection and prompts
 ```
 
-## Examples
-
-### Security Review Example
-
-```python
-# Input code
-def authenticate_user(username, password):
-    query = f"SELECT * FROM users WHERE username='{username}' AND password='{password}'"
-    return db.execute(query)
-```
-
-**Review Output:**
-- **Critical Issue**: SQL injection vulnerability
-- **Major Issue**: Plain text password comparison
-- **Suggestion**: Use parameterized queries and password hashing
-- **Alternative**: Use ORM with proper authentication library
-
-### Performance Review Example
-
-```javascript
-// Input code
-function findUser(users, targetId) {
-    for (let i = 0; i < users.length; i++) {
-        if (users[i].id === targetId) {
-            return users[i];
-        }
-    }
-    return null;
-}
-```
-
-**Review Output:**
-- **Minor Issue**: Linear search inefficiency for large datasets
-- **Suggestion**: Use Map or Set for O(1) lookups
-- **Alternative**: `users.find(user => user.id === targetId)`
-
 ## Related
 
 - [Model Context Protocol](https://modelcontextprotocol.io/)
