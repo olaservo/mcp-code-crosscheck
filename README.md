@@ -70,9 +70,10 @@ Recent studies suggest potential bias in AI self-evaluation, though the practica
 
 ### Tools
 
-- **`review_code`**: Review code with bias mitigation using cross-model evaluation. Can auto-detect generation model from commit co-authors or use provided parameter.
-- **`review_commit`**: Review a specific commit by fetching its changes and auto-detecting the generation model from co-authors.
-- **`review_pr`**: Review all commits in a pull request and auto-detect the generation model from co-authors.
+- **`review_code`**: Review code with bias mitigation using cross-model evaluation. Requires a detected generation model.
+- **`detect_model_from_authors`**: Detect AI model from commit author information. Use this with data from GitHub sources.
+- **`fetch_commit`**: Fetch commit details using GitHub CLI. Fallback tool - prefer GitHub MCP server if available.
+- **`fetch_pr_commits`**: Fetch PR commits using GitHub CLI. Fallback tool - prefer GitHub MCP server if available.
 
 ### Resources
 
@@ -90,17 +91,21 @@ Recent studies suggest potential bias in AI self-evaluation, though the practica
 
 ## How It Works
 
+### Modular Architecture
+
+This server uses a modular design that allows seamless integration with GitHub MCP servers when available, while providing fallback functionality through GitHub CLI.
+
+**Server Instructions**: The server provides comprehensive instructions to guide LLMs on the preferred workflow:
+- Use external GitHub MCP server tools for data fetching when available
+- Use this server's specialized tools for AI model detection and bias-resistant review
+- Fall back to this server's GitHub CLI tools only when external GitHub tools are unavailable
+
 ### Model Detection Strategy
 
-The server uses a two-step approach to detect the generation model:
-
-1. **Git Co-author Detection** (Primary): Automatically detects AI models from commit co-authors
-   - Parses `Co-Authored-By:` trailers in commit messages
-   - Recognizes patterns like `Co-Authored-By: Claude <noreply@anthropic.com>`
-   - Supports Claude, GPT/OpenAI, GitHub Copilot, Gemini, and other AI tools
-   - Uses GitHub CLI to fetch commit and PR information
-
-2. **Parameter Fallback** (Secondary): Uses the provided `generationModel` parameter if no co-author detected
+The server detects AI models from commit co-authors:
+- Parses `Co-Authored-By:` trailers in commit messages
+- Recognizes patterns like `Co-Authored-By: Claude <noreply@anthropic.com>`
+- Supports Claude, GPT/OpenAI, GitHub Copilot, Gemini, and other AI tools
 
 ### Cross-Model Review Process
 
@@ -108,14 +113,6 @@ The server uses a two-step approach to detect the generation model:
 2. **Client Sampling**: Uses MCP's sampling feature to request the client use a different model (success depends on client capabilities)
 3. **Structured Output**: Returns consistent review format with severity levels, metrics, and alternatives
 4. **Flexible Model Selection**: Uses metadata and hints to guide client model choice, though actual model selection depends on client implementation
-
-### GitHub CLI Integration
-
-The server integrates with GitHub CLI (`gh`) to:
-- Fetch commit details and co-author information
-- Retrieve PR commits and detect consistent model usage across the PR
-- Support both public and private repositories (with appropriate permissions)
-- Work with any GitHub repository when provided in `owner/repo` format
 
 ## Installation
 
@@ -151,25 +148,46 @@ Add to your MCP client configuration:
 
 ### Tool Usage
 
-#### Review Code Tool
+#### Modular Workflow Examples
 
+**Preferred Workflow (with GitHub MCP server):**
 ```javascript
-// Example tool call with auto-detection from commit
+// 1. Use GitHub MCP server to fetch commit data
 {
   "method": "tools/call",
   "params": {
-    "name": "review_code",
+    "name": "github_get_commit", // GitHub MCP server tool
     "arguments": {
-      "code": "def process_user_input(data):\n    return eval(data)",
-      "commitHash": "fdae89ecbfec8fda5d166277ab77398e6d3c06c9",
-      "repo": "modelcontextprotocol/inspector",
-      "language": "python",
-      "context": "User input processing function"
+      "owner": "modelcontextprotocol",
+      "repo": "inspector", 
+      "commit_sha": "fdae89ecbfec8fda5d166277ab77398e6d3c06c9"
     }
   }
 }
 
-// Example tool call with manual model specification
+// 2. Use this server to detect AI model from authors
+{
+  "method": "tools/call",
+  "params": {
+    "name": "detect_model_from_authors",
+    "arguments": {
+      "authors": [
+        // Can handle any GitHub API format - LLM extracts what's needed
+        {
+          "login": "claude-ai",
+          "id": 12345,
+          "node_id": "MDQ6VXNlcjEyMzQ1",
+          "avatar_url": "https://github.com/images/error/octocat_happy.gif",
+          "type": "User",
+          "name": "Claude",
+          "email": "noreply@anthropic.com"
+        }
+      ]
+    }
+  }
+}
+
+// 3. Use this server for bias-resistant review
 {
   "method": "tools/call",
   "params": {
@@ -178,68 +196,74 @@ Add to your MCP client configuration:
       "code": "def process_user_input(data):\n    return eval(data)",
       "generationModel": "claude",
       "language": "python",
-      "context": "User input processing function"
-    }
-  }
-}
-```
-
-**Input Parameters:**
-- `code` (required): The code to review
-- `generationModel` (optional): Model that generated the code (optional if commitHash or prNumber provided)
-- `language` (optional): Programming language
-- `context` (optional): Additional context about the code
-- `commitHash` (optional): Git commit hash to detect generation model from co-authors
-- `prNumber` (optional): GitHub PR number to detect generation model from co-authors
-- `repo` (optional): GitHub repository (owner/repo format, defaults to current repo)
-
-#### Review Commit Tool
-
-```javascript
-// Example tool call
-{
-  "method": "tools/call",
-  "params": {
-    "name": "review_commit",
-    "arguments": {
-      "commitHash": "fdae89ecbfec8fda5d166277ab77398e6d3c06c9",
-      "repo": "modelcontextprotocol/inspector",
+      "context": "User input processing function",
       "reviewType": "security"
     }
   }
 }
 ```
 
-**Input Parameters:**
-- `commitHash` (required): Git commit hash to review
-- `repo` (optional): GitHub repository (owner/repo format, defaults to current repo)
-- `generationModel` (optional): Model that generated the code (fallback if not detected from co-authors)
-- `reviewType` (optional): Type of review to perform (security, performance, maintainability, general)
-
-#### Review PR Tool
-
+**Fallback Workflow (without GitHub MCP server):**
 ```javascript
-// Example tool call
+// 1. Use this server's GitHub CLI fallback
 {
   "method": "tools/call",
   "params": {
-    "name": "review_pr",
+    "name": "fetch_commit",
     "arguments": {
-      "prNumber": "509",
-      "repo": "modelcontextprotocol/inspector",
-      "reviewType": "general"
+      "commitHash": "fdae89ecbfec8fda5d166277ab77398e6d3c06c9",
+      "repo": "modelcontextprotocol/inspector"
+    }
+  }
+}
+
+// 2. Detect model from the fetched authors
+{
+  "method": "tools/call",
+  "params": {
+    "name": "detect_model_from_authors",
+    "arguments": {
+      "authors": [/* authors from step 1 */]
+    }
+  }
+}
+
+// 3. Review with detected model
+{
+  "method": "tools/call",
+  "params": {
+    "name": "review_code",
+    "arguments": {
+      "code": "def process_user_input(data):\n    return eval(data)",
+      "generationModel": "claude",
+      "language": "python",
+      "reviewType": "security"
     }
   }
 }
 ```
 
-**Input Parameters:**
-- `prNumber` (required): GitHub PR number to review
-- `repo` (optional): GitHub repository (owner/repo format, defaults to current repo)
-- `generationModel` (optional): Model that generated the code (fallback if not detected from co-authors)
-- `reviewType` (optional): Type of review to perform (security, performance, maintainability, general)
+#### Individual Tool Reference
 
-**Output (All Tools):**
+**review_code**
+- `code` (required): The code to review
+- `generationModel` (required): Model that generated the code
+- `language` (optional): Programming language
+- `context` (optional): Additional context about the code
+- `reviewType` (optional): security, performance, maintainability, general
+
+**detect_model_from_authors**
+- `authors` (required): Array of author objects in any format - the tool will extract available information for AI model detection
+
+**fetch_commit** (fallback tool)
+- `commitHash` (required): Git commit hash to fetch
+- `repo` (optional): GitHub repository (owner/repo format)
+
+**fetch_pr_commits** (fallback tool)
+- `prNumber` (required): GitHub PR number to fetch commits from
+- `repo` (optional): GitHub repository (owner/repo format)
+
+**Output Format:**
 - `reviewModel`: Model used for review
 - `summary`: Brief overall assessment
 - `issues`: Array of identified issues with severity and suggestions
@@ -274,24 +298,67 @@ Use the provided prompts for manual code reviews:
 
 ## Architecture
 
+### Modular Design
+
+```mermaid
+graph TB
+    subgraph "GitHub Data Sources"
+        GH_MCP[GitHub MCP Server]
+        GH_CLI[GitHub CLI Fallback]
+    end
+    
+    subgraph "Code Crosscheck Server"
+        DETECT[detect_model_from_authors]
+        REVIEW[review_code]
+        FETCH_COMMIT[fetch_commit]
+        FETCH_PR[fetch_pr_commits]
+    end
+    
+    subgraph "Client/LLM"
+        CLIENT[MCP Client]
+        LLM[Language Model]
+    end
+    
+    CLIENT -->|Preferred| GH_MCP
+    CLIENT -->|Fallback| FETCH_COMMIT
+    CLIENT -->|Fallback| FETCH_PR
+    
+    GH_MCP -->|Author Data| DETECT
+    FETCH_COMMIT -->|Author Data| DETECT
+    FETCH_PR -->|Author Data| DETECT
+    
+    DETECT -->|Generation Model| REVIEW
+    REVIEW -->|Cross-Model Request| CLIENT
+    CLIENT -->|Different Model| LLM
+    LLM -->|Review Results| CLIENT
+```
+
+### Workflow Sequence
+
 ```mermaid
 sequenceDiagram
     participant Client
-    participant MCP Server
-    participant LLM (via Client)
+    participant GitHub_MCP as GitHub MCP Server
+    participant Crosscheck as Code Crosscheck Server
+    participant LLM as Review Model
 
-    Client->>MCP Server: tools/call (review_code)
+    Note over Client: Preferred Workflow
+    Client->>GitHub_MCP: fetch commit/PR data
+    GitHub_MCP-->>Client: commit data + authors
     
-    Note over MCP Server: Detect model overlap<br/>Create exclusion preferences<br/>Generate fallback hints
-    MCP Server->>Client: sampling/createMessage
-    Note over MCP Server: Request different model<br/>Include metadata + hints<br/>Include critical reviewer<br/>system prompt
+    Client->>Crosscheck: detect_model_from_authors
+    Crosscheck-->>Client: detected generation model
     
-    Client->>LLM: Forward request (different model)
-    LLM-->>Client: Review results
-    Client-->>MCP Server: Sampling response
+    Client->>Crosscheck: review_code (with generation model)
+    Note over Crosscheck: Create model exclusion preferences
+    Crosscheck->>Client: sampling request (exclude generation model)
     
-    Note over MCP Server: Parse and validate results
-    MCP Server-->>Client: Structured review output
+    Client->>LLM: review request (different model)
+    LLM-->>Client: review results
+    Client-->>Crosscheck: review response
+    
+    Note over Crosscheck: Parse and validate results
+    Crosscheck-->>Client: structured review output
 ```
 
 ## Related

@@ -216,12 +216,19 @@ export function parseReviewResponse(response: string): any {
 
 /**
  * Detect AI model from commit co-authors
+ * Now handles flexible author objects with optional fields
  */
-export function detectModelFromCoAuthors(authors: GitHubCommitAuthor[]): string | null {
+export function detectModelFromCoAuthors(authors: Array<{
+  name?: string;
+  email?: string;
+  login?: string;
+  id?: string | number;
+  [key: string]: any; // Allow additional fields
+}>): string | null {
   for (const author of authors) {
-    const name = author.name.toLowerCase();
-    const email = author.email.toLowerCase();
-    const login = author.login.toLowerCase();
+    const name = (author.name || '').toLowerCase();
+    const email = (author.email || '').toLowerCase();
+    const login = (author.login || '').toLowerCase();
     
     // Claude detection
     if (name.includes('claude') || email.includes('anthropic.com') || login.includes('claude')) {

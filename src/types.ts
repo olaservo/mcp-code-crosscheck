@@ -3,35 +3,42 @@ import { z } from "zod";
 // Input schema for review_code tool
 export const ReviewCodeInputSchema = z.object({
   code: z.string().describe("The code to review"),
-  generationModel: z.string().optional().describe("Model that generated the code (optional if commitHash or prNumber provided)"),
+  generationModel: z.string().describe("Model that generated the code (use detect_model_from_authors tool to get this)"),
   language: z.string().optional().describe("Programming language"),
   context: z.string().optional().describe("Additional context about the code"),
-  commitHash: z.string().optional().describe("Git commit hash to detect generation model from co-authors"),
-  prNumber: z.string().optional().describe("GitHub PR number to detect generation model from co-authors"),
-  repo: z.string().optional().describe("GitHub repository (owner/repo format, defaults to current repo)")
+  reviewType: z.enum(["security", "performance", "maintainability", "general"]).optional().describe("Type of review to perform")
 });
 
 export type ReviewCodeInput = z.infer<typeof ReviewCodeInputSchema>;
 
-// Input schema for review_commit tool
-export const ReviewCommitInputSchema = z.object({
-  commitHash: z.string().describe("Git commit hash to review"),
-  repo: z.string().optional().describe("GitHub repository (owner/repo format, defaults to current repo)"),
-  generationModel: z.string().optional().describe("Model that generated the code (fallback if not detected from co-authors)"),
-  reviewType: z.enum(["security", "performance", "maintainability", "general"]).optional().describe("Type of review to perform")
+// Input schema for detect_model_from_authors tool
+export const DetectModelInputSchema = z.object({
+  authors: z.array(z.object({
+    name: z.string().optional(),
+    email: z.string().optional(),
+    login: z.string().optional(),
+    id: z.union([z.string(), z.number()]).optional(),
+    // Allow any additional fields from GitHub API responses
+  }).passthrough()).describe("List of commit authors in any format - the tool will extract available information for AI model detection")
 });
 
-export type ReviewCommitInput = z.infer<typeof ReviewCommitInputSchema>;
+export type DetectModelInput = z.infer<typeof DetectModelInputSchema>;
 
-// Input schema for review_pr tool
-export const ReviewPRInputSchema = z.object({
-  prNumber: z.string().describe("GitHub PR number to review"),
-  repo: z.string().optional().describe("GitHub repository (owner/repo format, defaults to current repo)"),
-  generationModel: z.string().optional().describe("Model that generated the code (fallback if not detected from co-authors)"),
-  reviewType: z.enum(["security", "performance", "maintainability", "general"]).optional().describe("Type of review to perform")
+// Input schema for fetch_commit tool
+export const FetchCommitInputSchema = z.object({
+  commitHash: z.string().describe("Git commit hash to fetch"),
+  repo: z.string().optional().describe("GitHub repository (owner/repo format, defaults to current repo)")
 });
 
-export type ReviewPRInput = z.infer<typeof ReviewPRInputSchema>;
+export type FetchCommitInput = z.infer<typeof FetchCommitInputSchema>;
+
+// Input schema for fetch_pr_commits tool
+export const FetchPRCommitsInputSchema = z.object({
+  prNumber: z.string().describe("GitHub PR number to fetch commits from"),
+  repo: z.string().optional().describe("GitHub repository (owner/repo format, defaults to current repo)")
+});
+
+export type FetchPRCommitsInput = z.infer<typeof FetchPRCommitsInputSchema>;
 
 // Output schema for review_code tool
 export const ReviewIssueSchema = z.object({
