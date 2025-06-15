@@ -16,11 +16,42 @@ Recent studies suggest potential bias in AI self-evaluation, though the practica
 - **[LLM Evaluators Recognize and Favor Their Own Generations](https://arxiv.org/abs/2404.13076)** (Panickssery et al., UC San Diego, April 2024)
   - Found evidence of self-recognition leading to self-preference bias in controlled settings
   - Models showed tendency to rate their own outputs higher when identifiable
+  - Discovered linear correlation between self-recognition capability and bias strength
 
 ### Self-Bias Across Different Models
 - **[Pride and Prejudice: LLM Amplifies Self-Bias in Self-Refinement](https://arxiv.org/abs/2402.11436)** (Xu et al., February 2024)
   - Observed self-bias patterns in 6 major LLMs in specific evaluation tasks
   - Suggests self-refinement may amplify rather than reduce bias in some contexts
+
+### Code-Specific Evaluation Bias
+- **[Don't Judge Code by Its Cover: Exploring Biases in LLM Judges for Code Evaluation](https://arxiv.org/abs/2505.16222)** (Moon et al., May 2025)
+  - First comprehensive study of LLM bias specifically in code evaluation
+  - Identified 6 distinct bias types: formatting, naming, comments, language-specific patterns
+  - Found biases persist even with test-case generation strategies
+  - Validates need for cross-model evaluation in code review contexts
+
+### Quantifying LLM-as-Judge Biases
+- **[Justice or Prejudice? Quantifying Biases in LLM-as-a-Judge](https://arxiv.org/abs/2410.02736)** (Li et al., October 2024)
+  - Comprehensive benchmark showing 40% average bias rate across models
+  - Demonstrates effectiveness of multi-model evaluation approaches
+  - Provides quantitative evidence for bias reduction through model diversity
+
+- **[Self-Preference Bias in LLM-as-a-Judge](https://arxiv.org/abs/2410.21819)** (Wu et al., October 2024)
+  - Shows 50%+ of evaluations exhibit favorable bias toward own outputs
+  - Demonstrates bias persistence even with anonymized sources
+  - Supports using different models for generation vs evaluation
+
+### Multi-Agent Code Generation Success
+- **[MapCoder: Multi-Agent Code Generation for Competitive Problem Solving](https://aclanthology.org/2024.acl-long.269/)** (Islam et al., ACL 2024)
+  - Achieved 93.9% pass@1 on HumanEval using separated agents
+  - Demonstrates effectiveness of role separation in reducing bias
+  - Validates multi-agent architecture for code tasks
+
+### Self-Recognition Mechanisms
+- **[Self-Recognition in Language Models](https://arxiv.org/abs/2407.06946)** (Wataoka et al., July 2024)
+  - Explains "familiarity hypothesis": models prefer outputs matching their training patterns
+  - Shows models evaluate based on perplexity alignment
+  - Provides theoretical foundation for cross-model evaluation
 
 ### Structured Prompting Effects
 - **[Principled Instructions Are All You Need](https://arxiv.org/abs/2312.16171)** (VILA Lab, December 2023)
