@@ -133,30 +133,39 @@ If you cannot find legitimate issues, explain what testing would be needed to ve
   const typeSpecificGuidance = {
     security: `
 Focus especially on:
-- Input validation and sanitization
-- Authentication and authorization flaws
-- Data exposure risks
-- Injection vulnerabilities
-- Cryptographic issues`,
+- Input validation and sanitization: List any specific input validation gaps
+- Authentication and authorization flaws: Identify access control weaknesses
+- Data exposure risks: Name any sensitive data that could be leaked
+- Injection vulnerabilities: Specify injection attack vectors
+- Cryptographic issues: Point out weak encryption or hashing practices
+- Dependencies: Flag any concerning security-related imports or packages`,
     
     performance: `
 Focus especially on:
-- Algorithmic complexity
-- Memory usage patterns
-- I/O operations efficiency
-- Caching opportunities
-- Scalability bottlenecks`,
+- Algorithmic complexity: Identify the slowest operation and its time complexity
+- Memory usage patterns: Point out potential memory leaks or excessive allocation
+- I/O operations efficiency: Name specific I/O bottlenecks
+- Caching opportunities: Suggest what should be cached
+- Scalability bottlenecks: Identify what will break under load
+- Testing: What performance testing is missing to verify scalability?`,
     
     maintainability: `
 Focus especially on:
-- Code readability and clarity
-- Modularity and separation of concerns
-- Documentation completeness
-- Testing coverage gaps
-- Technical debt indicators`,
+- Code readability and clarity: Identify confusing or unclear sections
+- Modularity and separation of concerns: Point out tight coupling issues
+- Documentation completeness: What documentation is missing?
+- Testing coverage gaps: Name 2 unhandled scenarios that need tests
+- Technical debt indicators: Identify code that will be hard to modify
+- Dependencies: Any concerning imports that add unnecessary complexity?`,
     
     general: `
-Provide a balanced review covering security, performance, and maintainability aspects.`
+Provide a balanced review covering security, performance, and maintainability aspects.
+For each area, be specific:
+- Security: List any input validation gaps
+- Performance: Identify the slowest operation  
+- Error Cases: Name 2 unhandled scenarios
+- Testing: What's missing from test coverage?
+- Dependencies: Any concerning imports or packages?`
   };
 
   const outputFormat = `
