@@ -1,4 +1,5 @@
-import { ModelPreferences, ReviewType } from "./types.js";
+import { ModelPreferences, ReviewType, GitHubCommit, GitHubPRCommits, GitHubCommitAuthor } from "./types.js";
+import { execSync } from "child_process";
 
 /**
  * Check if two models have overlapping characteristics that suggest they're from the same family
@@ -211,4 +212,153 @@ export function parseReviewResponse(response: string): any {
   } catch (error) {
     throw new Error(`Failed to parse review response as JSON: ${error}`);
   }
+}
+
+/**
+ * Detect AI model from commit co-authors
+ */
+export function detectModelFromCoAuthors(authors: GitHubCommitAuthor[]): string | null {
+  for (const author of authors) {
+    const name = author.name.toLowerCase();
+    const email = author.email.toLowerCase();
+    const login = author.login.toLowerCase();
+    
+    // Claude detection
+    if (name.includes('claude') || email.includes('anthropic.com') || login.includes('claude')) {
+      return 'claude';
+    }
+    
+    // GPT/OpenAI detection
+    if (name.includes('gpt') || name.includes('openai') || email.includes('openai.com') || login.includes('gpt')) {
+      return 'gpt-4';
+    }
+    
+    // GitHub Copilot detection
+    if (name.includes('copilot') || email.includes('github.com') && login.includes('copilot')) {
+      return 'github-copilot';
+    }
+    
+    // Gemini/Google detection
+    if (name.includes('gemini') || name.includes('bard') || email.includes('google.com')) {
+      return 'gemini';
+    }
+    
+    // Add more patterns as needed
+  }
+  
+  return null;
+}
+
+/**
+ * Fetch PR commits using GitHub CLI
+ */
+export async function fetchPRCommits(prNumber: string, repo?: string): Promise<GitHubCommit[]> {
+  try {
+    const repoFlag = repo ? `--repo ${repo}` : '';
+    const command = `gh pr view ${prNumber} ${repoFlag} --json commits`;
+    
+    const output = execSync(command, { encoding: 'utf8' });
+    const data: GitHubPRCommits = JSON.parse(output);
+    
+    return data.commits;
+  } catch (error) {
+    throw new Error(`Failed to fetch PR commits: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Fetch single commit using GitHub CLI
+ */
+export async function fetchCommit(commitHash: string, repo?: string): Promise<GitHubCommit> {
+  try {
+    const repoFlag = repo ? `--repo ${repo}` : '';
+    const command = `gh api repos/${repo || 'OWNER/REPO'}/commits/${commitHash}`;
+    
+    const output = execSync(command, { encoding: 'utf8' });
+    const data = JSON.parse(output);
+    
+    // Convert GitHub API format to our format
+    const commit: GitHubCommit = {
+      authoredDate: data.commit.author.date,
+      authors: [
+        {
+          email: data.commit.author.email,
+          id: data.author?.id || '',
+          login: data.author?.login || '',
+          name: data.commit.author.name
+        }
+      ],
+      committedDate: data.commit.committer.date,
+      messageBody: data.commit.message.split('\n').slice(1).join('\n'),
+      messageHeadline: data.commit.message.split('\n')[0],
+      oid: data.sha
+    };
+    
+    // Parse co-authors from commit message
+    const coAuthorPattern = /Co-Authored-By:\s*([^<]+)<([^>]+)>/gi;
+    let match;
+    while ((match = coAuthorPattern.exec(data.commit.message)) !== null) {
+      const name = match[1].trim();
+      const email = match[2].trim();
+      
+      commit.authors.push({
+        email,
+        id: '',
+        login: name.toLowerCase().replace(/\s+/g, '-'),
+        name
+      });
+    }
+    
+    return commit;
+  } catch (error) {
+    throw new Error(`Failed to fetch commit: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
+ * Detect generation model from PR or commit
+ */
+export async function detectGenerationModel(
+  prNumber?: string,
+  commitHash?: string,
+  repo?: string,
+  providedModel?: string
+): Promise<string> {
+  // 1. Try PR detection first
+  if (prNumber) {
+    try {
+      const commits = await fetchPRCommits(prNumber, repo);
+      
+      // Check commits until we find one with co-author info
+      for (const commit of commits) {
+        const detectedModel = detectModelFromCoAuthors(commit.authors);
+        if (detectedModel) {
+          return detectedModel;
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to detect model from PR ${prNumber}:`, error);
+    }
+  }
+  
+  // 2. Try single commit detection
+  if (commitHash) {
+    try {
+      const commit = await fetchCommit(commitHash, repo);
+      const detectedModel = detectModelFromCoAuthors(commit.authors);
+      if (detectedModel) {
+        return detectedModel;
+      }
+    } catch (error) {
+      console.warn(`Failed to detect model from commit ${commitHash}:`, error);
+    }
+  }
+  
+  // 3. Fall back to provided parameter
+  if (providedModel) {
+    return providedModel;
+  }
+  
+  // 4. Error if neither available
+  throw new Error("Could not detect generation model. Please provide generationModel parameter or commit/PR information with co-author data.");
 }

@@ -70,7 +70,9 @@ Recent studies suggest potential bias in AI self-evaluation, though the practica
 
 ### Tools
 
-- **`review_code`**: Attempts cross-model code review by requesting the client use a different model than the one that generated the code
+- **`review_code`**: Review code with bias mitigation using cross-model evaluation. Can auto-detect generation model from commit co-authors or use provided parameter.
+- **`review_commit`**: Review a specific commit by fetching its changes and auto-detecting the generation model from co-authors.
+- **`review_pr`**: Review all commits in a pull request and auto-detect the generation model from co-authors.
 
 ### Resources
 
@@ -88,10 +90,32 @@ Recent studies suggest potential bias in AI self-evaluation, though the practica
 
 ## How It Works
 
+### Model Detection Strategy
+
+The server uses a two-step approach to detect the generation model:
+
+1. **Git Co-author Detection** (Primary): Automatically detects AI models from commit co-authors
+   - Parses `Co-Authored-By:` trailers in commit messages
+   - Recognizes patterns like `Co-Authored-By: Claude <noreply@anthropic.com>`
+   - Supports Claude, GPT/OpenAI, GitHub Copilot, Gemini, and other AI tools
+   - Uses GitHub CLI to fetch commit and PR information
+
+2. **Parameter Fallback** (Secondary): Uses the provided `generationModel` parameter if no co-author detected
+
+### Cross-Model Review Process
+
 1. **Model Exclusion**: The server tracks which model generated the code and attempts to request a different model family for review
 2. **Client Sampling**: Uses MCP's sampling feature to request the client use a different model (success depends on client capabilities)
 3. **Structured Output**: Returns consistent review format with severity levels, metrics, and alternatives
 4. **Flexible Model Selection**: Uses metadata and hints to guide client model choice, though actual model selection depends on client implementation
+
+### GitHub CLI Integration
+
+The server integrates with GitHub CLI (`gh`) to:
+- Fetch commit details and co-author information
+- Retrieve PR commits and detect consistent model usage across the PR
+- Support both public and private repositories (with appropriate permissions)
+- Work with any GitHub repository when provided in `owner/repo` format
 
 ## Installation
 
@@ -130,14 +154,29 @@ Add to your MCP client configuration:
 #### Review Code Tool
 
 ```javascript
-// Example tool call
+// Example tool call with auto-detection from commit
 {
   "method": "tools/call",
   "params": {
     "name": "review_code",
     "arguments": {
       "code": "def process_user_input(data):\n    return eval(data)",
-      "generationModel": "gpt-4.1",
+      "commitHash": "fdae89ecbfec8fda5d166277ab77398e6d3c06c9",
+      "repo": "modelcontextprotocol/inspector",
+      "language": "python",
+      "context": "User input processing function"
+    }
+  }
+}
+
+// Example tool call with manual model specification
+{
+  "method": "tools/call",
+  "params": {
+    "name": "review_code",
+    "arguments": {
+      "code": "def process_user_input(data):\n    return eval(data)",
+      "generationModel": "claude",
       "language": "python",
       "context": "User input processing function"
     }
@@ -147,11 +186,60 @@ Add to your MCP client configuration:
 
 **Input Parameters:**
 - `code` (required): The code to review
-- `generationModel` (required): Model that generated the code
+- `generationModel` (optional): Model that generated the code (optional if commitHash or prNumber provided)
 - `language` (optional): Programming language
 - `context` (optional): Additional context about the code
+- `commitHash` (optional): Git commit hash to detect generation model from co-authors
+- `prNumber` (optional): GitHub PR number to detect generation model from co-authors
+- `repo` (optional): GitHub repository (owner/repo format, defaults to current repo)
 
-**Output:**
+#### Review Commit Tool
+
+```javascript
+// Example tool call
+{
+  "method": "tools/call",
+  "params": {
+    "name": "review_commit",
+    "arguments": {
+      "commitHash": "fdae89ecbfec8fda5d166277ab77398e6d3c06c9",
+      "repo": "modelcontextprotocol/inspector",
+      "reviewType": "security"
+    }
+  }
+}
+```
+
+**Input Parameters:**
+- `commitHash` (required): Git commit hash to review
+- `repo` (optional): GitHub repository (owner/repo format, defaults to current repo)
+- `generationModel` (optional): Model that generated the code (fallback if not detected from co-authors)
+- `reviewType` (optional): Type of review to perform (security, performance, maintainability, general)
+
+#### Review PR Tool
+
+```javascript
+// Example tool call
+{
+  "method": "tools/call",
+  "params": {
+    "name": "review_pr",
+    "arguments": {
+      "prNumber": "509",
+      "repo": "modelcontextprotocol/inspector",
+      "reviewType": "general"
+    }
+  }
+}
+```
+
+**Input Parameters:**
+- `prNumber` (required): GitHub PR number to review
+- `repo` (optional): GitHub repository (owner/repo format, defaults to current repo)
+- `generationModel` (optional): Model that generated the code (fallback if not detected from co-authors)
+- `reviewType` (optional): Type of review to perform (security, performance, maintainability, general)
+
+**Output (All Tools):**
 - `reviewModel`: Model used for review
 - `summary`: Brief overall assessment
 - `issues`: Array of identified issues with severity and suggestions

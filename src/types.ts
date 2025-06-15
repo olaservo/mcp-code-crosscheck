@@ -3,12 +3,35 @@ import { z } from "zod";
 // Input schema for review_code tool
 export const ReviewCodeInputSchema = z.object({
   code: z.string().describe("The code to review"),
-  generationModel: z.string().describe("Model that generated the code"),
+  generationModel: z.string().optional().describe("Model that generated the code (optional if commitHash or prNumber provided)"),
   language: z.string().optional().describe("Programming language"),
-  context: z.string().optional().describe("Additional context about the code")
+  context: z.string().optional().describe("Additional context about the code"),
+  commitHash: z.string().optional().describe("Git commit hash to detect generation model from co-authors"),
+  prNumber: z.string().optional().describe("GitHub PR number to detect generation model from co-authors"),
+  repo: z.string().optional().describe("GitHub repository (owner/repo format, defaults to current repo)")
 });
 
 export type ReviewCodeInput = z.infer<typeof ReviewCodeInputSchema>;
+
+// Input schema for review_commit tool
+export const ReviewCommitInputSchema = z.object({
+  commitHash: z.string().describe("Git commit hash to review"),
+  repo: z.string().optional().describe("GitHub repository (owner/repo format, defaults to current repo)"),
+  generationModel: z.string().optional().describe("Model that generated the code (fallback if not detected from co-authors)"),
+  reviewType: z.enum(["security", "performance", "maintainability", "general"]).optional().describe("Type of review to perform")
+});
+
+export type ReviewCommitInput = z.infer<typeof ReviewCommitInputSchema>;
+
+// Input schema for review_pr tool
+export const ReviewPRInputSchema = z.object({
+  prNumber: z.string().describe("GitHub PR number to review"),
+  repo: z.string().optional().describe("GitHub repository (owner/repo format, defaults to current repo)"),
+  generationModel: z.string().optional().describe("Model that generated the code (fallback if not detected from co-authors)"),
+  reviewType: z.enum(["security", "performance", "maintainability", "general"]).optional().describe("Type of review to perform")
+});
+
+export type ReviewPRInput = z.infer<typeof ReviewPRInputSchema>;
 
 // Output schema for review_code tool
 export const ReviewIssueSchema = z.object({
@@ -36,6 +59,27 @@ export type ReviewCodeOutput = z.infer<typeof ReviewCodeOutputSchema>;
 
 // Review template types
 export type ReviewType = "security" | "performance" | "maintainability" | "general";
+
+// GitHub CLI integration types
+export interface GitHubCommitAuthor {
+  email: string;
+  id: string;
+  login: string;
+  name: string;
+}
+
+export interface GitHubCommit {
+  authoredDate: string;
+  authors: GitHubCommitAuthor[];
+  committedDate: string;
+  messageBody: string;
+  messageHeadline: string;
+  oid: string;
+}
+
+export interface GitHubPRCommits {
+  commits: GitHubCommit[];
+}
 
 // Model family extraction and exclusion types
 export interface ModelPreferences {

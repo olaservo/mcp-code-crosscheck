@@ -17,6 +17,8 @@ import { zodToJsonSchema } from "zod-to-json-schema";
 
 import {
   ReviewCodeInputSchema,
+  ReviewCommitInputSchema,
+  ReviewPRInputSchema,
   ReviewCodeOutputSchema,
   ReviewType,
   PromptArgumentSchema,
@@ -27,6 +29,9 @@ import {
   createCriticalReviewerPrompt,
   getReviewTemplate,
   parseReviewResponse,
+  detectGenerationModel,
+  fetchCommit,
+  fetchPRCommits,
 } from "./utils.js";
 
 const ToolInputSchema = ToolSchema.shape.inputSchema;
@@ -35,6 +40,8 @@ type ToolInput = z.infer<typeof ToolInputSchema>;
 // Tool names
 enum ToolName {
   REVIEW_CODE = "review_code",
+  REVIEW_COMMIT = "review_commit",
+  REVIEW_PR = "review_pr",
 }
 
 // Prompt names
@@ -112,8 +119,18 @@ export const createServer = () => {
     const tools: Tool[] = [
       {
         name: ToolName.REVIEW_CODE,
-        description: "Review code with bias mitigation using cross-model evaluation via client sampling",
+        description: "Review code with bias mitigation using cross-model evaluation via client sampling. Can auto-detect generation model from commit co-authors.",
         inputSchema: zodToJsonSchema(ReviewCodeInputSchema) as ToolInput,
+      },
+      {
+        name: ToolName.REVIEW_COMMIT,
+        description: "Review a specific commit by fetching its changes and auto-detecting the generation model from co-authors.",
+        inputSchema: zodToJsonSchema(ReviewCommitInputSchema) as ToolInput,
+      },
+      {
+        name: ToolName.REVIEW_PR,
+        description: "Review all commits in a pull request and auto-detect the generation model from co-authors.",
+        inputSchema: zodToJsonSchema(ReviewPRInputSchema) as ToolInput,
       },
     ];
 
@@ -126,11 +143,14 @@ export const createServer = () => {
 
     if (name === ToolName.REVIEW_CODE) {
       const validatedArgs = ReviewCodeInputSchema.parse(args);
-      const { code, generationModel, language, context } = validatedArgs;
+      const { code, generationModel, language, context, commitHash, prNumber, repo } = validatedArgs;
 
       try {
+        // Detect generation model using new detection logic
+        const detectedModel = await detectGenerationModel(prNumber, commitHash, repo, generationModel);
+        
         // Request review from client using sampling
-        const result = await requestSampling(code, generationModel, language, context);
+        const result = await requestSampling(code, detectedModel, language, context);
         
         // Parse the response
         const responseText = typeof result.content === 'string' ? result.content : 
@@ -148,7 +168,7 @@ export const createServer = () => {
           content: [
             {
               type: "text",
-              text: `## Code Review Results\n\n**Review Model:** ${validatedReview.reviewModel}\n**Generation Model:** ${generationModel}\n\n### Summary\n${validatedReview.summary}`,
+              text: `## Code Review Results\n\n**Review Model:** ${validatedReview.reviewModel}\n**Generation Model:** ${detectedModel}\n\n### Summary\n${validatedReview.summary}`,
             },
           ],
           structuredContent: validatedReview,
@@ -159,6 +179,110 @@ export const createServer = () => {
             {
               type: "text",
               text: `Error during code review: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    if (name === ToolName.REVIEW_COMMIT) {
+      const validatedArgs = ReviewCommitInputSchema.parse(args);
+      const { commitHash, repo, generationModel, reviewType = "general" } = validatedArgs;
+
+      try {
+        // Fetch commit details
+        const commit = await fetchCommit(commitHash, repo);
+        
+        // Detect generation model
+        const detectedModel = await detectGenerationModel(undefined, commitHash, repo, generationModel);
+        
+        // Extract code from commit (simplified - in practice you'd want to get the actual diff)
+        const code = `Commit: ${commit.messageHeadline}\n\n${commit.messageBody}`;
+        const context = `Commit ${commitHash} by ${commit.authors.map(a => a.name).join(', ')}`;
+        
+        // Request review from client using sampling
+        const result = await requestSampling(code, detectedModel, undefined, context, reviewType);
+        
+        // Parse the response
+        const responseText = typeof result.content === 'string' ? result.content : 
+                           Array.isArray(result.content) ? result.content.find(c => c.type === 'text')?.text || '' :
+                           result.content.text || '';
+        const reviewData = parseReviewResponse(responseText);
+        
+        // Validate the parsed response against our schema
+        const validatedReview = ReviewCodeOutputSchema.parse({
+          reviewModel: result.model || "unknown",
+          ...reviewData,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `## Commit Review Results\n\n**Commit:** ${commitHash}\n**Review Model:** ${validatedReview.reviewModel}\n**Generation Model:** ${detectedModel}\n\n### Summary\n${validatedReview.summary}`,
+            },
+          ],
+          structuredContent: validatedReview,
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error during commit review: ${error instanceof Error ? error.message : String(error)}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    if (name === ToolName.REVIEW_PR) {
+      const validatedArgs = ReviewPRInputSchema.parse(args);
+      const { prNumber, repo, generationModel, reviewType = "general" } = validatedArgs;
+
+      try {
+        // Fetch PR commits
+        const commits = await fetchPRCommits(prNumber, repo);
+        
+        // Detect generation model from PR
+        const detectedModel = await detectGenerationModel(prNumber, undefined, repo, generationModel);
+        
+        // Create summary of PR changes
+        const code = commits.map(c => `${c.messageHeadline}\n${c.messageBody}`).join('\n\n---\n\n');
+        const context = `PR #${prNumber} with ${commits.length} commits`;
+        
+        // Request review from client using sampling
+        const result = await requestSampling(code, detectedModel, undefined, context, reviewType);
+        
+        // Parse the response
+        const responseText = typeof result.content === 'string' ? result.content : 
+                           Array.isArray(result.content) ? result.content.find(c => c.type === 'text')?.text || '' :
+                           result.content.text || '';
+        const reviewData = parseReviewResponse(responseText);
+        
+        // Validate the parsed response against our schema
+        const validatedReview = ReviewCodeOutputSchema.parse({
+          reviewModel: result.model || "unknown",
+          ...reviewData,
+        });
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `## PR Review Results\n\n**PR:** #${prNumber}\n**Review Model:** ${validatedReview.reviewModel}\n**Generation Model:** ${detectedModel}\n\n### Summary\n${validatedReview.summary}`,
+            },
+          ],
+          structuredContent: validatedReview,
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error during PR review: ${error instanceof Error ? error.message : String(error)}`,
             },
           ],
           isError: true,
