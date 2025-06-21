@@ -1,6 +1,8 @@
 # MCP Code Crosscheck
 
-An MCP (Model Context Protocol) server that attempts to reduce bias in AI code review by requesting different models for code generation and review, based on recent research suggesting self-evaluation bias in language models.
+🚧 **UNDER CONSTRUCTION** 🚧
+
+A POC MCP (Model Context Protocol) server that attempts to reduce bias in AI code review by requesting different models for code generation and review, based on recent research suggesting self-evaluation bias in language models.
 
 ## Overview
 
