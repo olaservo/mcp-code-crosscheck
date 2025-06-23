@@ -111,6 +111,28 @@ FALLBACK WORKFLOW (when GitHub MCP server is not available):
 2. Use this server's 'detect_model_from_authors' tool to identify AI models
 3. Use this server's 'review_code' tool for bias-resistant cross-model review
 
+CROSS-MODEL REVIEW IMPLEMENTATION:
+The 'review_code' tool attempts bias-resistant evaluation through two mechanisms:
+
+AUTOMATIC SAMPLING (preferred):
+- Tool uses MCP sampling API to request client use a different model than the generation model
+- Provides model exclusion preferences and fallback hints to guide client selection
+- Success depends on client's sampling capabilities
+
+MANUAL CROSS-MODEL FALLBACK (when sampling not supported):
+If your client does not support sampling or the sampling request fails, you MUST:
+1. Extract the review prompt and code from the tool's internal structure
+2. Explicitly ask the user to run the review using a DIFFERENT model than the generation model
+3. Provide specific model recommendations based on the generation model:
+   - If generation model was Claude/Anthropic → recommend GPT-4, Gemini, or other non-Anthropic models
+   - If generation model was GPT/OpenAI → recommend Claude, Gemini, or other non-OpenAI models  
+   - If generation model was Gemini/Google → recommend Claude, GPT-4, or other non-Google models
+   - If generation model was GitHub Copilot → recommend Claude, GPT-4, Gemini
+4. Tell the user: "To ensure bias-resistant review, please run this prompt with [recommended model] instead of [generation model]"
+5. Return the cross-model review results to complete the bias-resistant evaluation
+
+This ensures bias mitigation regardless of client capabilities - either through automatic sampling or manual user-driven cross-model evaluation.
+
 WHEN TO USE WHAT:
 - Use 'code_review' PROMPT for: Quick reviews, any code, immediate feedback
 - Use 'review_code' TOOL for: AI-generated code, bias-resistant evaluation, cross-model analysis
@@ -118,7 +140,7 @@ WHEN TO USE WHAT:
 CORE COMPETENCY: Both prompt and tools use the same critical reviewer approach with structured checklist output. Tools add bias mitigation by avoiding the model that generated the code.
 
 TOOL GUIDANCE:
-- 'review_code': Bias-resistant review, requires detected generation model, uses sampling API
+- 'review_code': Bias-resistant review, requires detected generation model, uses sampling API with manual fallback
 - 'detect_model_from_authors': Standalone AI model detection from commit authors
 - 'fetch_commit'/'fetch_pr_commits': GitHub CLI fallback tools, use only when GitHub MCP server unavailable`,
     }
@@ -229,14 +251,46 @@ TOOL GUIDANCE:
           structuredContent: validatedReview,
         };
       } catch (error) {
+        // Generate manual cross-model instructions when sampling fails
+        const fallbackHints = createFallbackHints(generationModel);
+        const recommendedModels = fallbackHints.map(h => h.name).join(', ');
+        
+        const codeBlock = language ? `\`\`\`${language}\n${code}\n\`\`\`` : `\`\`\`\n${code}\n\`\`\``;
+        const contextText = context ? `\n\nContext: ${context}` : "";
+        const reviewPrompt = `${CRITICAL_REVIEWER_PROMPT}\n\nReview this ${language || 'code'} and identify potential issues:${contextText}\n\n${codeBlock}`;
+
         return {
           content: [
             {
               type: "text",
-              text: `Error during code review: ${error instanceof Error ? error.message : String(error)}`,
+              text: `## Sampling Failed - Manual Cross-Model Review Required
+
+**Error:** ${error instanceof Error ? error.message : String(error)}
+
+**To ensure bias-resistant review, please run this prompt with ${recommendedModels} instead of ${generationModel}:**
+
+---
+
+${reviewPrompt}
+
+---
+
+**Instructions:**
+1. Copy the prompt above
+2. Switch to a different model (recommended: ${recommendedModels})
+3. Run the prompt with the different model
+4. This ensures bias-resistant evaluation by avoiding the model that generated the code (${generationModel})
+
+**Why this matters:** Using the same model for both generation and review can introduce self-preference bias. Cross-model evaluation helps identify issues the original model might miss.`,
             },
           ],
-          isError: true,
+          structuredContent: {
+            samplingFailed: true,
+            generationModel,
+            recommendedModels: fallbackHints.map(h => h.name),
+            manualPrompt: reviewPrompt,
+            error: error instanceof Error ? error.message : String(error)
+          },
         };
       }
     }
