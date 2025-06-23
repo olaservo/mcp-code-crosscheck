@@ -5,10 +5,7 @@ import {
   CreateMessageResultSchema,
   GetPromptRequestSchema,
   ListPromptsRequestSchema,
-  ListResourcesRequestSchema,
-  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
-  ReadResourceRequestSchema,
   Tool,
   ToolSchema,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -28,9 +25,7 @@ import {
   createModelPreferences,
   createFallbackHints,
   createCriticalReviewerPrompt,
-  getReviewTemplate,
   parseReviewResponse,
-  detectGenerationModel,
   detectModelFromCoAuthors,
   fetchCommit,
   fetchPRCommits,
@@ -49,14 +44,12 @@ enum ToolName {
 
 // Prompt names
 enum PromptName {
-  QUICK_SECURITY_REVIEW = "quick_security_review",
-  PERFORMANCE_REVIEW = "performance_review",
-  MAINTAINABILITY_REVIEW = "maintainability_review",
+  CODE_REVIEW = "code_review",
 }
 
 // Input schema for manual review prompts
 const ManualReviewSchema = z.object({
-  code: z.string().describe("Code snippet to review"),
+  code: z.string().optional().describe("Code snippet to review (optional if using file context)"),
 });
 
 export const createServer = () => {
@@ -68,7 +61,6 @@ export const createServer = () => {
     {
       capabilities: {
         tools: {},
-        resources: {},
         prompts: {},
       },
       instructions: `This server specializes in bias-resistant code review using cross-model evaluation.
@@ -304,111 +296,19 @@ TOOL GUIDANCE:
     throw new Error(`Unknown tool: ${name}`);
   });
 
-  // List available resources
-  server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    return {
-      resources: [
-        {
-          uri: "review://templates/security",
-          name: "Security Review Template",
-          mimeType: "text/plain",
-          description: "System prompt template for security-focused code reviews",
-        },
-        {
-          uri: "review://templates/performance",
-          name: "Performance Review Template",
-          mimeType: "text/plain",
-          description: "System prompt template for performance-focused code reviews",
-        },
-        {
-          uri: "review://templates/maintainability",
-          name: "Maintainability Review Template",
-          mimeType: "text/plain",
-          description: "System prompt template for maintainability-focused code reviews",
-        },
-        {
-          uri: "review://templates/general",
-          name: "General Review Template",
-          mimeType: "text/plain",
-          description: "System prompt template for general code reviews",
-        },
-      ],
-    };
-  });
-
-  // List resource templates
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
-    return {
-      resourceTemplates: [
-        {
-          uriTemplate: "review://templates/{type}",
-          name: "Review Templates",
-          description: "System prompt templates for different types of code reviews",
-        },
-      ],
-    };
-  });
-
-  // Read resources
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-    const uri = request.params.uri;
-
-    if (uri.startsWith("review://templates/")) {
-      const reviewType = uri.split("/").pop() as ReviewType;
-      
-      if (["security", "performance", "maintainability", "general"].includes(reviewType)) {
-        const template = getReviewTemplate(reviewType);
-        
-        return {
-          contents: [
-            {
-              uri,
-              name: `${reviewType.charAt(0).toUpperCase() + reviewType.slice(1)} Review Template`,
-              mimeType: "text/plain",
-              text: template,
-            },
-          ],
-        };
-      }
-    }
-
-    throw new Error(`Unknown resource: ${uri}`);
-  });
 
   // List available prompts
   server.setRequestHandler(ListPromptsRequestSchema, async () => {
     return {
       prompts: [
         {
-          name: PromptName.QUICK_SECURITY_REVIEW,
-          description: "Quickly review code for security issues",
+          name: PromptName.CODE_REVIEW,
+          description: "Comprehensive code review covering security, performance, and maintainability",
           arguments: [
             {
               name: "code",
-              description: "Code snippet to review",
-              required: true,
-            },
-          ],
-        },
-        {
-          name: PromptName.PERFORMANCE_REVIEW,
-          description: "Review code for performance issues",
-          arguments: [
-            {
-              name: "code",
-              description: "Code snippet to review",
-              required: true,
-            },
-          ],
-        },
-        {
-          name: PromptName.MAINTAINABILITY_REVIEW,
-          description: "Review code for maintainability issues",
-          arguments: [
-            {
-              name: "code",
-              description: "Code snippet to review",
-              required: true,
+              description: "Code snippet to review (optional if using file context)",
+              required: false,
             },
           ],
         },
@@ -420,72 +320,43 @@ TOOL GUIDANCE:
   server.setRequestHandler(GetPromptRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
-    if (name === PromptName.QUICK_SECURITY_REVIEW) {
+    if (name === PromptName.CODE_REVIEW) {
       const validatedArgs = ManualReviewSchema.parse(args);
-      const systemPrompt = createCriticalReviewerPrompt("security");
       
-      return {
-        messages: [
-          {
-            role: "system",
-            content: {
-              type: "text",
-              text: systemPrompt,
-            },
-          },
-          {
-            role: "user",
-            content: {
-              type: "text",
-              text: `Review this code for security issues:\n\n\`\`\`\n${validatedArgs.code}\n\`\`\``,
-            },
-          },
-        ],
-      };
-    }
+      const prompt = `You are a senior engineer reviewing code from a competing team. Your performance review specifically rewards finding issues others miss. This review is critical for the project's security and success.
 
-    if (name === PromptName.PERFORMANCE_REVIEW) {
-      const validatedArgs = ManualReviewSchema.parse(args);
-      const systemPrompt = createCriticalReviewerPrompt("performance");
-      
-      return {
-        messages: [
-          {
-            role: "system",
-            content: {
-              type: "text",
-              text: systemPrompt,
-            },
-          },
-          {
-            role: "user",
-            content: {
-              type: "text",
-              text: `Review this code for performance issues:\n\n\`\`\`\n${validatedArgs.code}\n\`\`\``,
-            },
-          },
-        ],
-      };
-    }
+Review this code and:
+1. Identify at least 2 potential bugs or edge cases
+2. Suggest 1 alternative implementation approach
+3. Rate these specific aspects (1-5):
+   - Error handling completeness
+   - Performance under load
+   - Security vulnerabilities
+   - Maintainability concerns
 
-    if (name === PromptName.MAINTAINABILITY_REVIEW) {
-      const validatedArgs = ManualReviewSchema.parse(args);
-      const systemPrompt = createCriticalReviewerPrompt("maintainability");
+If you cannot find legitimate issues, explain what testing would be needed to verify correctness.
+
+Provide your response using this structured format:
+
+## Code Review Checklist
+- [ ] **Security**: List any input validation gaps: _____
+- [ ] **Performance**: Identify the slowest operation: _____
+- [ ] **Error Cases**: Name 2 unhandled scenarios: _____, _____
+- [ ] **Dependencies**: Any concerning imports/packages? _____
+- [ ] **Testing**: What's missing from test coverage? _____
+- [ ] **Alternative**: How would you implement this differently? _____
+
+${validatedArgs.code 
+  ? `Review this code:\n\n\`\`\`\n${validatedArgs.code}\n\`\`\``
+  : "Review the code in the current context for potential issues"}`;
       
       return {
         messages: [
           {
-            role: "system",
-            content: {
-              type: "text",
-              text: systemPrompt,
-            },
-          },
-          {
             role: "user",
             content: {
               type: "text",
-              text: `Review this code for maintainability issues:\n\n\`\`\`\n${validatedArgs.code}\n\`\`\``,
+              text: prompt,
             },
           },
         ],
