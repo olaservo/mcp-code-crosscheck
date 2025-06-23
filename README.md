@@ -77,19 +77,9 @@ Recent studies suggest potential bias in AI self-evaluation, though the practica
 - **`fetch_commit`**: Fetch commit details using GitHub CLI. Fallback tool - prefer GitHub MCP server if available.
 - **`fetch_pr_commits`**: Fetch PR commits using GitHub CLI. Fallback tool - prefer GitHub MCP server if available.
 
-### Resources
-
-- **Review Templates**: System prompts for different review types:
-  - `review://templates/security` - Security-focused reviews
-  - `review://templates/performance` - Performance-focused reviews  
-  - `review://templates/maintainability` - Maintainability-focused reviews
-  - `review://templates/general` - General code reviews
-
 ### Prompts
 
-- **`quick_security_review`**: Manual security review prompt
-- **`performance_review`**: Manual performance review prompt
-- **`maintainability_review`**: Manual maintainability review prompt
+- **`code_review`**: Comprehensive code review covering security, performance, and maintainability with structured checklist output
 
 ## How It Works
 
@@ -274,14 +264,14 @@ Add to your MCP client configuration:
 
 ### Prompt Usage
 
-Use the provided prompts for manual code reviews:
+Use the provided prompt for comprehensive code reviews:
 
 ```javascript
-// Quick security review
+// Comprehensive code review
 {
   "method": "prompts/get",
   "params": {
-    "name": "quick_security_review",
+    "name": "code_review",
     "arguments": {
       "code": "your code here"
     }
