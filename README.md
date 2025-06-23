@@ -161,7 +161,7 @@ Use this server as part of a defense-in-depth strategy:
 2. Use bias-aware mode for general correctness checking
 3. Apply adversarial mode selectively for critical code
 
-### What This Tool Does Well
+### What This Tool Can Do
 
 Despite limitations, the server can help with:
 - Identifying logical errors and edge cases
