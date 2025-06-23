@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && shx mkdir -p dist/prompts && shx cp prompts/*.md dist/prompts/",
     "dev": "tsc --watch",
     "start": "node dist/index.js"
   },
@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "shx": "^0.3.4",
     "typescript": "^5.0.0"
   },
   "engines": {
