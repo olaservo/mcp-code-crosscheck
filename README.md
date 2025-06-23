@@ -103,8 +103,11 @@ The server detects AI models from commit co-authors:
 
 1. **Model Exclusion**: The server tracks which model generated the code and attempts to request a different model family for review
 2. **Client Sampling**: Uses MCP's sampling feature to request the client use a different model (success depends on client capabilities)
-3. **Structured Output**: Returns consistent review format with severity levels, metrics, and alternatives
-4. **Flexible Model Selection**: Uses metadata and hints to guide client model choice, though actual model selection depends on client implementation
+3. **Manual Fallback**: When sampling isn't supported, the tool provides ready-to-use prompts and specific model recommendations, instructing users to manually run the review with a different model family
+4. **Structured Output**: Returns consistent review format with severity levels, metrics, and alternatives
+5. **Flexible Model Selection**: Uses metadata and hints to guide client model choice, though actual model selection depends on client implementation
+
+**Fallback for Non-Sampling Clients**: The server ensures bias-resistant evaluation regardless of client capabilities. When automatic sampling fails, users receive clear instructions and ready-to-use prompts for manual cross-model review, maintaining the bias mitigation approach even with basic MCP clients.
 
 ## Installation
 
@@ -285,6 +288,11 @@ Use the provided prompt for comprehensive code reviews:
 - **Simple code**: For straightforward implementations, cross-model review may add complexity without benefit
 - **Domain-specific code**: Models may lack specialized knowledge regardless of which one reviews
 - **Subjective preferences**: Style and architectural decisions may vary between models without clear "better" choices
+
+### Client Compatibility
+- **Advanced MCP clients**: Full automatic cross-model evaluation via sampling API
+- **Basic MCP clients**: Manual cross-model workflow with provided prompts and model recommendations
+- **All clients**: Bias-resistant review is achievable regardless of sampling support
 
 **Recommendation**: Consider this as one tool among many for code review, not a replacement for human judgment or comprehensive testing.
 
