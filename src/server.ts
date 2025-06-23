@@ -24,7 +24,6 @@ import {
 import {
   createModelPreferences,
   createFallbackHints,
-  createCriticalReviewerPrompt,
   parseReviewResponse,
   detectModelFromCoAuthors,
   fetchCommit,
@@ -47,6 +46,30 @@ enum PromptName {
   CODE_REVIEW = "code_review",
 }
 
+// Unified critical reviewer prompt used by both tool and prompt handler
+const CRITICAL_REVIEWER_PROMPT = `You are a senior engineer reviewing code from a competing team. Your performance review specifically rewards finding issues others miss. This review is critical for the project's security and success.
+
+Review this code and:
+1. Identify at least 2 potential bugs or edge cases
+2. Suggest 1 alternative implementation approach
+3. Rate these specific aspects (1-5):
+   - Error handling completeness
+   - Performance under load
+   - Security vulnerabilities
+   - Maintainability concerns
+
+If you cannot find legitimate issues, explain what testing would be needed to verify correctness.
+
+Provide your response using this structured format:
+
+## Code Review Checklist
+- [ ] **Security**: List any input validation gaps: _____
+- [ ] **Performance**: Identify the slowest operation: _____
+- [ ] **Error Cases**: Name 2 unhandled scenarios: _____, _____
+- [ ] **Dependencies**: Any concerning imports/packages? _____
+- [ ] **Testing**: What's missing from test coverage? _____
+- [ ] **Alternative**: How would you implement this differently? _____`;
+
 // Input schema for manual review prompts
 const ManualReviewSchema = z.object({
   code: z.string().optional().describe("Code snippet to review (optional if using file context)"),
@@ -63,7 +86,20 @@ export const createServer = () => {
         tools: {},
         prompts: {},
       },
-      instructions: `This server specializes in bias-resistant code review using cross-model evaluation.
+      instructions: `This server provides comprehensive code review capabilities through both prompts and tools, specializing in bias-resistant evaluation.
+
+CAPABILITIES:
+- 'code_review' prompt: Direct, comprehensive code review with structured checklist output
+- Tools for bias-resistant cross-model evaluation and GitHub integration
+
+PROMPT USAGE:
+Use the 'code_review' prompt for immediate, comprehensive code review:
+- Covers security, performance, and maintainability in structured checklist format
+- Works with explicit code snippets or file context (code parameter is optional)
+- Uses critical reviewer approach with "competing team" mindset
+- Provides actionable feedback in markdown checklist format
+
+TOOL WORKFLOWS (for bias-resistant review of AI-generated code):
 
 PREFERRED WORKFLOW (when GitHub MCP server is available):
 1. Use GitHub MCP server tools to fetch commit/PR data and author information
@@ -75,10 +111,14 @@ FALLBACK WORKFLOW (when GitHub MCP server is not available):
 2. Use this server's 'detect_model_from_authors' tool to identify AI models
 3. Use this server's 'review_code' tool for bias-resistant cross-model review
 
-CORE COMPETENCY: This server's primary strength is cross-model review that mitigates AI self-evaluation bias. Always prefer external GitHub tools for data fetching when available, but use this server's specialized review capabilities regardless of the GitHub data source.
+WHEN TO USE WHAT:
+- Use 'code_review' PROMPT for: Quick reviews, any code, immediate feedback
+- Use 'review_code' TOOL for: AI-generated code, bias-resistant evaluation, cross-model analysis
+
+CORE COMPETENCY: Both prompt and tools use the same critical reviewer approach with structured checklist output. Tools add bias mitigation by avoiding the model that generated the code.
 
 TOOL GUIDANCE:
-- 'review_code': Main tool for bias-resistant review, requires detected generation model
+- 'review_code': Bias-resistant review, requires detected generation model, uses sampling API
 - 'detect_model_from_authors': Standalone AI model detection from commit authors
 - 'fetch_commit'/'fetch_pr_commits': GitHub CLI fallback tools, use only when GitHub MCP server unavailable`,
     }
@@ -117,7 +157,7 @@ TOOL GUIDANCE:
             },
           },
         ],
-        systemPrompt: createCriticalReviewerPrompt(reviewType),
+        systemPrompt: CRITICAL_REVIEWER_PROMPT,
         modelPreferences,
         maxTokens: 2000,
         temperature: 0.2,
@@ -323,32 +363,11 @@ TOOL GUIDANCE:
     if (name === PromptName.CODE_REVIEW) {
       const validatedArgs = ManualReviewSchema.parse(args);
       
-      const prompt = `You are a senior engineer reviewing code from a competing team. Your performance review specifically rewards finding issues others miss. This review is critical for the project's security and success.
-
-Review this code and:
-1. Identify at least 2 potential bugs or edge cases
-2. Suggest 1 alternative implementation approach
-3. Rate these specific aspects (1-5):
-   - Error handling completeness
-   - Performance under load
-   - Security vulnerabilities
-   - Maintainability concerns
-
-If you cannot find legitimate issues, explain what testing would be needed to verify correctness.
-
-Provide your response using this structured format:
-
-## Code Review Checklist
-- [ ] **Security**: List any input validation gaps: _____
-- [ ] **Performance**: Identify the slowest operation: _____
-- [ ] **Error Cases**: Name 2 unhandled scenarios: _____, _____
-- [ ] **Dependencies**: Any concerning imports/packages? _____
-- [ ] **Testing**: What's missing from test coverage? _____
-- [ ] **Alternative**: How would you implement this differently? _____
-
-${validatedArgs.code 
-  ? `Review this code:\n\n\`\`\`\n${validatedArgs.code}\n\`\`\``
-  : "Review the code in the current context for potential issues"}`;
+      const codeSection = validatedArgs.code 
+        ? `\n\nReview this code:\n\n\`\`\`\n${validatedArgs.code}\n\`\`\``
+        : "\n\nReview the code in the current context for potential issues";
+      
+      const prompt = CRITICAL_REVIEWER_PROMPT + codeSection;
       
       return {
         messages: [
