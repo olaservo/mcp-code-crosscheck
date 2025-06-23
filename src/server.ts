@@ -56,7 +56,6 @@ const __dirname = dirname(__filename);
 let cachedPrompts: {
   adversarial: string;
   biasAware: string;
-  hybrid: string;
   instructions: string;
 } | null = null;
 
@@ -70,13 +69,11 @@ function loadPrompts() {
   
   const adversarial = readFileSync(join(promptsDir, 'adversarial-reviewer.md'), 'utf-8').trim();
   const biasAware = readFileSync(join(promptsDir, 'bias-aware-reviewer.md'), 'utf-8').trim();
-  const hybrid = readFileSync(join(promptsDir, 'hybrid-reviewer.md'), 'utf-8').trim();
   const instructions = readFileSync(join(promptsDir, 'server-instructions.md'), 'utf-8').trim();
   
   cachedPrompts = {
     adversarial,
     biasAware,
-    hybrid,
     instructions,
   };
   
@@ -92,8 +89,6 @@ function getReviewerPrompt(strategy: ReviewStrategy): string {
       return prompts.adversarial;
     case "bias_aware":
       return prompts.biasAware;
-    case "hybrid":
-      return prompts.hybrid;
   }
 }
 
@@ -176,7 +171,7 @@ export const createServer = () => {
     const tools: Tool[] = [
       {
         name: ToolName.REVIEW_CODE,
-        description: "Review code with bias mitigation using cross-model evaluation via client sampling. Returns structured markdown review with metrics (1-3 scale), issues, and alternatives. Requires a detected generation model and review strategy (adversarial, bias_aware, or hybrid).",
+        description: "Review code with bias mitigation using cross-model evaluation via client sampling. Default 'bias_aware' mode focuses on correctness with low false positives. Optional 'adversarial' mode provides thorough review but expect some false positives. Use adversarial for security-critical code or when you want maximum scrutiny.",
         inputSchema: zodToJsonSchema(ReviewCodeInputSchema) as ToolInput,
       },
       {
@@ -205,7 +200,7 @@ export const createServer = () => {
 
     if (name === ToolName.REVIEW_CODE) {
       const validatedArgs = ReviewCodeInputSchema.parse(args);
-      const { code, generationModel, language, context, reviewType = "general", reviewStrategy } = validatedArgs;
+      const { code, generationModel, language, context, reviewType = "general", reviewStrategy = "bias_aware" } = validatedArgs;
 
       try {
         // Request review from client using sampling
@@ -216,6 +211,11 @@ export const createServer = () => {
                            Array.isArray(result.content) ? result.content.find(c => c.type === 'text')?.text || '' :
                            result.content.text || '';
 
+        // Add strategy indicator and warning for adversarial mode
+        const strategyIndicator = reviewStrategy === "adversarial" 
+          ? "⚠️ Adversarial review completed - Some findings may be overly critical"
+          : "✓ Bias-aware review completed";
+
         // Return the markdown response with appended metadata
         return {
           content: [
@@ -225,7 +225,7 @@ export const createServer = () => {
             },
             {
               type: "text",
-              text: `\n\n---\n**Metadata:**\n- Review Model: ${result.model || "unknown"}\n- Generation Model: ${generationModel}\n- Strategy: ${reviewStrategy}`,
+              text: `\n\n---\n**${strategyIndicator}**\n\n**Metadata:**\n- Review Model: ${result.model || "unknown"}\n- Generation Model: ${generationModel}\n- Strategy: ${reviewStrategy}`,
             },
           ],
         };
@@ -236,7 +236,7 @@ export const createServer = () => {
         
         const codeBlock = language ? `\`\`\`${language}\n${code}\n\`\`\`` : `\`\`\`\n${code}\n\`\`\``;
         const contextText = context ? `\n\nContext: ${context}` : "";
-        const systemPrompt = getReviewerPrompt(reviewStrategy);
+        const systemPrompt = getReviewerPrompt(reviewStrategy || "bias_aware");
         const reviewPrompt = `${systemPrompt}\n\nReview this ${language || 'code'} and identify potential issues:${contextText}\n\n${codeBlock}`;
 
         return {

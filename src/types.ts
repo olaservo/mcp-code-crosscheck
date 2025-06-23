@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Review strategy type
-export type ReviewStrategy = "adversarial" | "bias_aware" | "hybrid";
+export type ReviewStrategy = "adversarial" | "bias_aware";
 
 // Input schema for review_code tool
 export const ReviewCodeInputSchema = z.object({
@@ -10,7 +10,7 @@ export const ReviewCodeInputSchema = z.object({
   language: z.string().optional().describe("Programming language"),
   context: z.string().optional().describe("Additional context about the code"),
   reviewType: z.enum(["security", "performance", "maintainability", "general"]).optional().describe("Type of review to perform"),
-  reviewStrategy: z.enum(["adversarial", "bias_aware", "hybrid"]).describe("Review strategy to use")
+  reviewStrategy: z.enum(["adversarial", "bias_aware"]).optional().describe("Review strategy: 'bias_aware' (default, focused on correctness) or 'adversarial' (thorough but may have false positives)")
 });
 
 export type ReviewCodeInput = z.infer<typeof ReviewCodeInputSchema>;
