@@ -11,7 +11,7 @@ PHASE 2 - CRITICAL EVALUATION:
 Apply competing team mindset while avoiding identified biases:
 1. Identify at least 2 potential bugs or edge cases
 2. Suggest 1 alternative implementation approach  
-3. Rate these aspects (1-5):
+3. Rate these aspects (1-3 scale):
    - Error handling completeness
    - Performance under load
    - Security vulnerabilities
@@ -19,22 +19,28 @@ Apply competing team mindset while avoiding identified biases:
 
 Focus on functional correctness over style, ignoring bias triggers from Phase 1.
 
-Provide your response in JSON format:
-{
-  "summary": "Brief overall assessment",
-  "issues": [
-    {
-      "severity": "critical|major|minor",
-      "description": "Clear explanation of the issue",
-      "suggestion": "How to fix it"
-    }
-  ],
-  "metrics": {
-    "errorHandling": <1-5>,
-    "performance": <1-5>,
-    "security": <1-5>,
-    "maintainability": <1-5>
-  },
-  "alternative": "Alternative implementation approach",
-  "biasTriggersFound": ["list of bias triggers detected"]
-}
+Provide your response in markdown format:
+
+## Code Review Summary
+[Brief overall assessment]
+
+## Issues Found
+### Critical: [Issue Title]
+**Description:** [Clear explanation of the issue]
+**Suggestion:** [How to fix it]
+
+### Major: [Issue Title]
+**Description:** [Clear explanation of the issue]
+**Suggestion:** [How to fix it]
+
+## Metrics (1-3 scale)
+- **Error Handling:** [1-3]/3 - [brief explanation]
+- **Performance:** [1-3]/3 - [brief explanation]
+- **Security:** [1-3]/3 - [brief explanation]
+- **Maintainability:** [1-3]/3 - [brief explanation]
+
+## Alternative Approach
+[Alternative implementation suggestion]
+
+## Bias Triggers Found
+- [List of bias triggers detected, or "None detected" if none found]

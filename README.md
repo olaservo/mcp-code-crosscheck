@@ -259,11 +259,10 @@ Add to your MCP client configuration:
 - `repo` (optional): GitHub repository (owner/repo format)
 
 **Output Format:**
-- `reviewModel`: Model used for review
-- `summary`: Brief overall assessment
-- `issues`: Array of identified issues with severity and suggestions
-- `metrics`: Quantitative ratings (1-5) for error handling, performance, security, maintainability
-- `alternative`: Alternative implementation approach
+- Structured markdown with clear sections for summary, issues, metrics, and alternatives
+- Quantitative ratings (1-3 scale) for error handling, performance, security, maintainability
+- Metadata appended showing review model, generation model, and strategy used
+- For bias-aware and hybrid strategies: bias triggers detection section
 
 ### Prompt Usage
 

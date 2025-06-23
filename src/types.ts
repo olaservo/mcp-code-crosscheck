@@ -44,31 +44,6 @@ export const FetchPRCommitsInputSchema = z.object({
 
 export type FetchPRCommitsInput = z.infer<typeof FetchPRCommitsInputSchema>;
 
-// Output schema for review_code tool
-export const ReviewIssueSchema = z.object({
-  severity: z.enum(["critical", "major", "minor"]).describe("Issue severity level"),
-  description: z.string().describe("Clear explanation of the issue"),
-  suggestion: z.string().describe("How to fix the issue")
-});
-
-export const ReviewMetricsSchema = z.object({
-  errorHandling: z.number().min(1).max(5).describe("Error handling completeness (1-5)"),
-  performance: z.number().min(1).max(5).describe("Performance under load (1-5)"),
-  security: z.number().min(1).max(5).describe("Security vulnerabilities (1-5)"),
-  maintainability: z.number().min(1).max(5).describe("Maintainability concerns (1-5)")
-});
-
-export const ReviewCodeOutputSchema = z.object({
-  reviewModel: z.string().describe("Model used for review"),
-  reviewStrategy: z.enum(["adversarial", "bias_aware", "hybrid"]).describe("Strategy used for review"),
-  summary: z.string().describe("Brief overall assessment"),
-  issues: z.array(ReviewIssueSchema).describe("List of identified issues"),
-  metrics: ReviewMetricsSchema.describe("Quantitative assessment metrics"),
-  alternative: z.string().describe("Alternative implementation approach"),
-  biasTriggersFound: z.array(z.string()).optional().describe("Bias triggers detected (bias_aware/hybrid only)")
-});
-
-export type ReviewCodeOutput = z.infer<typeof ReviewCodeOutputSchema>;
 
 // Review template types
 export type ReviewType = "security" | "performance" | "maintainability" | "general";
@@ -106,12 +81,3 @@ export interface ModelPreferences {
     reviewContext: string;
   };
 }
-
-// Prompt argument schema
-export const PromptArgumentSchema = z.object({
-  name: z.string(),
-  description: z.string(),
-  required: z.boolean().default(false)
-});
-
-export type PromptArgument = z.infer<typeof PromptArgumentSchema>;

@@ -3,7 +3,7 @@ You are a senior engineer reviewing code from a competing team. Your performance
 Review this code and:
 1. Identify at least 2 potential bugs or edge cases
 2. Suggest 1 alternative implementation approach
-3. Rate these specific aspects (1-5):
+3. Rate these specific aspects (1-3 scale):
    - Error handling completeness
    - Performance under load
    - Security vulnerabilities
@@ -11,21 +11,25 @@ Review this code and:
 
 If you cannot find legitimate issues, explain what testing would be needed to verify correctness.
 
-Provide your response in JSON format:
-{
-  "summary": "Brief overall assessment",
-  "issues": [
-    {
-      "severity": "critical|major|minor",
-      "description": "Clear explanation of the issue",
-      "suggestion": "How to fix it"
-    }
-  ],
-  "metrics": {
-    "errorHandling": <1-5>,
-    "performance": <1-5>,
-    "security": <1-5>,
-    "maintainability": <1-5>
-  },
-  "alternative": "Alternative implementation approach"
-}
+Provide your response in markdown format:
+
+## Code Review Summary
+[Brief overall assessment]
+
+## Issues Found
+### Critical: [Issue Title]
+**Description:** [Clear explanation of the issue]
+**Suggestion:** [How to fix it]
+
+### Major: [Issue Title]
+**Description:** [Clear explanation of the issue]
+**Suggestion:** [How to fix it]
+
+## Metrics (1-3 scale)
+- **Error Handling:** [1-3]/3 - [brief explanation]
+- **Performance:** [1-3]/3 - [brief explanation]
+- **Security:** [1-3]/3 - [brief explanation]
+- **Maintainability:** [1-3]/3 - [brief explanation]
+
+## Alternative Approach
+[Alternative implementation suggestion]

@@ -20,15 +20,12 @@ import {
   DetectModelInputSchema,
   FetchCommitInputSchema,
   FetchPRCommitsInputSchema,
-  ReviewCodeOutputSchema,
   ReviewType,
   ReviewStrategy,
-  PromptArgumentSchema,
 } from "./types.js";
 import {
   createModelPreferences,
   createFallbackHints,
-  parseReviewResponse,
   detectModelFromCoAuthors,
   fetchCommit,
   fetchPRCommits,
@@ -179,7 +176,7 @@ export const createServer = () => {
     const tools: Tool[] = [
       {
         name: ToolName.REVIEW_CODE,
-        description: "Review code with bias mitigation using cross-model evaluation via client sampling. Requires a detected generation model and review strategy (adversarial, bias_aware, or hybrid).",
+        description: "Review code with bias mitigation using cross-model evaluation via client sampling. Returns structured markdown review with metrics (1-3 scale), issues, and alternatives. Requires a detected generation model and review strategy (adversarial, bias_aware, or hybrid).",
         inputSchema: zodToJsonSchema(ReviewCodeInputSchema) as ToolInput,
       },
       {
@@ -214,27 +211,23 @@ export const createServer = () => {
         // Request review from client using sampling
         const result = await requestSampling(code, generationModel, reviewStrategy, language, context, reviewType);
         
-        // Parse the response
+        // Extract the response text
         const responseText = typeof result.content === 'string' ? result.content : 
                            Array.isArray(result.content) ? result.content.find(c => c.type === 'text')?.text || '' :
                            result.content.text || '';
-        const reviewData = parseReviewResponse(responseText);
-        
-        // Validate the parsed response against our schema
-        const validatedReview = ReviewCodeOutputSchema.parse({
-          reviewModel: result.model || "unknown",
-          reviewStrategy: reviewStrategy,
-          ...reviewData,
-        });
 
+        // Return the markdown response with appended metadata
         return {
           content: [
             {
               type: "text",
-              text: `## Code Review Results\n\n**Review Model:** ${validatedReview.reviewModel}\n**Generation Model:** ${generationModel}\n**Strategy:** ${reviewStrategy}\n\n### Summary\n${validatedReview.summary}`,
+              text: responseText,
+            },
+            {
+              type: "text",
+              text: `\n\n---\n**Metadata:**\n- Review Model: ${result.model || "unknown"}\n- Generation Model: ${generationModel}\n- Strategy: ${reviewStrategy}`,
             },
           ],
-          structuredContent: validatedReview,
         };
       } catch (error) {
         // Generate manual cross-model instructions when sampling fails
@@ -384,7 +377,7 @@ ${reviewPrompt}
       prompts: [
         {
           name: PromptName.CODE_REVIEW,
-          description: "Comprehensive code review covering security, performance, and maintainability",
+          description: "Comprehensive code review covering security, performance, and maintainability. Returns structured markdown with 1-3 scale metrics.",
           arguments: [
             {
               name: "code",

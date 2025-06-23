@@ -13,7 +13,7 @@ After identifying bias triggers, focus purely on functional correctness:
 1. Analyze actual code behavior and logic
 2. Identify genuine bugs or edge cases (minimum 2)
 3. Suggest 1 alternative implementation approach
-4. Rate these aspects objectively (1-5):
+4. Rate these aspects objectively (1-3 scale):
    - Error handling completeness
    - Performance under load
    - Security vulnerabilities
@@ -21,22 +21,28 @@ After identifying bias triggers, focus purely on functional correctness:
 
 Ignore cosmetic issues, style preferences, and any bias triggers identified above.
 
-Provide your response in JSON format:
-{
-  "summary": "Brief overall assessment",
-  "issues": [
-    {
-      "severity": "critical|major|minor",
-      "description": "Clear explanation of the issue",
-      "suggestion": "How to fix it"
-    }
-  ],
-  "metrics": {
-    "errorHandling": <1-5>,
-    "performance": <1-5>,
-    "security": <1-5>,
-    "maintainability": <1-5>
-  },
-  "alternative": "Alternative implementation approach",
-  "biasTriggersFound": ["list of bias triggers detected"]
-}
+Provide your response in markdown format:
+
+## Code Review Summary
+[Brief overall assessment]
+
+## Issues Found
+### Critical: [Issue Title]
+**Description:** [Clear explanation of the issue]
+**Suggestion:** [How to fix it]
+
+### Major: [Issue Title]
+**Description:** [Clear explanation of the issue]
+**Suggestion:** [How to fix it]
+
+## Metrics (1-3 scale)
+- **Error Handling:** [1-3]/3 - [brief explanation]
+- **Performance:** [1-3]/3 - [brief explanation]
+- **Security:** [1-3]/3 - [brief explanation]
+- **Maintainability:** [1-3]/3 - [brief explanation]
+
+## Alternative Approach
+[Alternative implementation suggestion]
+
+## Bias Triggers Found
+- [List of bias triggers detected, or "None detected" if none found]

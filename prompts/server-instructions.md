@@ -10,17 +10,17 @@ The 'review_code' tool supports three distinct strategies:
 1. 'adversarial': Uses competing team mindset for critical analysis
    - Assumes reviewer is from competing team with incentive to find issues
    - Focuses on identifying bugs, edge cases, and alternative implementations
-   - Standard JSON output format
+   - Structured markdown output format
 
 2. 'bias_aware': Explicitly identifies and ignores bias triggers before evaluation
    - First detects potential bias triggers (author comments, tool names, style choices)
    - Then evaluates purely on functional correctness while ignoring identified biases
-   - Includes 'biasTriggersFound' array in output
+   - Includes 'Bias Triggers Found' section in markdown output
 
 3. 'hybrid': Combines bias detection with adversarial review
    - Phase 1: Identifies bias triggers like bias_aware strategy
    - Phase 2: Applies adversarial mindset while avoiding identified biases
-   - Includes 'biasTriggersFound' array in output
+   - Includes 'Bias Triggers Found' section in markdown output
 
 STRATEGY SELECTION GUIDANCE:
 - Use 'adversarial' for: Standard critical review with competitive framing
@@ -31,7 +31,7 @@ PROMPT USAGE:
 Use the 'code_review' prompt for immediate, comprehensive code review:
 - Uses adversarial strategy by default
 - Works with explicit code snippets or file context (code parameter is optional)
-- Provides structured JSON output
+- Provides structured markdown output
 
 TOOL WORKFLOWS (for bias-resistant review of AI-generated code):
 

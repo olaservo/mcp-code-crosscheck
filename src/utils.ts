@@ -115,20 +115,6 @@ export function createFallbackHints(generationModel: string): Array<{ name: stri
 }
 
 
-/**
- * Parse JSON response from LLM, with error handling
- */
-export function parseReviewResponse(response: string): any {
-  try {
-    // Try to extract JSON from response if it's wrapped in markdown or other text
-    const jsonMatch = response.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-    const jsonString = jsonMatch ? jsonMatch[1] : response.trim();
-    
-    return JSON.parse(jsonString);
-  } catch (error) {
-    throw new Error(`Failed to parse review response as JSON: ${error}`);
-  }
-}
 
 /**
  * Detect AI model from commit co-authors
