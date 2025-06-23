@@ -1,12 +1,16 @@
 import { z } from "zod";
 
+// Review strategy type
+export type ReviewStrategy = "adversarial" | "bias_aware" | "hybrid";
+
 // Input schema for review_code tool
 export const ReviewCodeInputSchema = z.object({
   code: z.string().describe("The code to review"),
   generationModel: z.string().describe("Model that generated the code (use detect_model_from_authors tool to get this)"),
   language: z.string().optional().describe("Programming language"),
   context: z.string().optional().describe("Additional context about the code"),
-  reviewType: z.enum(["security", "performance", "maintainability", "general"]).optional().describe("Type of review to perform")
+  reviewType: z.enum(["security", "performance", "maintainability", "general"]).optional().describe("Type of review to perform"),
+  reviewStrategy: z.enum(["adversarial", "bias_aware", "hybrid"]).describe("Review strategy to use")
 });
 
 export type ReviewCodeInput = z.infer<typeof ReviewCodeInputSchema>;
@@ -56,10 +60,12 @@ export const ReviewMetricsSchema = z.object({
 
 export const ReviewCodeOutputSchema = z.object({
   reviewModel: z.string().describe("Model used for review"),
+  reviewStrategy: z.enum(["adversarial", "bias_aware", "hybrid"]).describe("Strategy used for review"),
   summary: z.string().describe("Brief overall assessment"),
   issues: z.array(ReviewIssueSchema).describe("List of identified issues"),
   metrics: ReviewMetricsSchema.describe("Quantitative assessment metrics"),
-  alternative: z.string().describe("Alternative implementation approach")
+  alternative: z.string().describe("Alternative implementation approach"),
+  biasTriggersFound: z.array(z.string()).optional().describe("Bias triggers detected (bias_aware/hybrid only)")
 });
 
 export type ReviewCodeOutput = z.infer<typeof ReviewCodeOutputSchema>;

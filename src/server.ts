@@ -19,6 +19,7 @@ import {
   FetchPRCommitsInputSchema,
   ReviewCodeOutputSchema,
   ReviewType,
+  ReviewStrategy,
   PromptArgumentSchema,
 } from "./types.js";
 import {
@@ -46,8 +47,8 @@ enum PromptName {
   CODE_REVIEW = "code_review",
 }
 
-// Unified critical reviewer prompt used by both tool and prompt handler
-const CRITICAL_REVIEWER_PROMPT = `You are a senior engineer reviewing code from a competing team. Your performance review specifically rewards finding issues others miss. This review is critical for the project's security and success.
+// Strategy-specific reviewer prompts
+const ADVERSARIAL_REVIEWER_PROMPT = `You are a senior engineer reviewing code from a competing team. Your performance review specifically rewards finding issues others miss. This review is critical for the project's security and success.
 
 Review this code and:
 1. Identify at least 2 potential bugs or edge cases
@@ -60,15 +61,120 @@ Review this code and:
 
 If you cannot find legitimate issues, explain what testing would be needed to verify correctness.
 
-Provide your response using this structured format:
+Provide your response in JSON format:
+{
+  "summary": "Brief overall assessment",
+  "issues": [
+    {
+      "severity": "critical|major|minor",
+      "description": "Clear explanation of the issue",
+      "suggestion": "How to fix it"
+    }
+  ],
+  "metrics": {
+    "errorHandling": <1-5>,
+    "performance": <1-5>,
+    "security": <1-5>,
+    "maintainability": <1-5>
+  },
+  "alternative": "Alternative implementation approach"
+}`;
 
-## Code Review Checklist
-- [ ] **Security**: List any input validation gaps: _____
-- [ ] **Performance**: Identify the slowest operation: _____
-- [ ] **Error Cases**: Name 2 unhandled scenarios: _____, _____
-- [ ] **Dependencies**: Any concerning imports/packages? _____
-- [ ] **Testing**: What's missing from test coverage? _____
-- [ ] **Alternative**: How would you implement this differently? _____`;
+const BIAS_AWARE_REVIEWER_PROMPT = `You are conducting a thorough, objective code review. Before evaluating the code, you must identify and list any potential bias triggers that could influence your judgment.
+
+BIAS DETECTION STEP:
+First, scan for these bias triggers and list any found:
+- Author attribution comments or self-declarations
+- Variable/function names suggesting specific tools or models
+- Unused imports or dead code that might mislead assessment
+- Comments claiming code quality or performance
+- Styling choices that might trigger preferences
+
+EVALUATION STEP:
+After identifying bias triggers, focus purely on functional correctness:
+1. Analyze actual code behavior and logic
+2. Identify genuine bugs or edge cases (minimum 2)
+3. Suggest 1 alternative implementation approach
+4. Rate these aspects objectively (1-5):
+   - Error handling completeness
+   - Performance under load
+   - Security vulnerabilities
+   - Maintainability concerns
+
+Ignore cosmetic issues, style preferences, and any bias triggers identified above.
+
+Provide your response in JSON format:
+{
+  "summary": "Brief overall assessment",
+  "issues": [
+    {
+      "severity": "critical|major|minor",
+      "description": "Clear explanation of the issue",
+      "suggestion": "How to fix it"
+    }
+  ],
+  "metrics": {
+    "errorHandling": <1-5>,
+    "performance": <1-5>,
+    "security": <1-5>,
+    "maintainability": <1-5>
+  },
+  "alternative": "Alternative implementation approach",
+  "biasTriggersFound": ["list of bias triggers detected"]
+}`;
+
+const HYBRID_REVIEWER_PROMPT = `You are conducting a comprehensive code review that combines bias detection with critical analysis.
+
+PHASE 1 - BIAS DETECTION:
+Identify and list potential bias triggers:
+- Author attribution or self-declarations
+- Tool/model-specific naming patterns
+- Misleading comments or unused code
+- Style choices that might influence judgment
+
+PHASE 2 - CRITICAL EVALUATION:
+Apply competing team mindset while avoiding identified biases:
+1. Identify at least 2 potential bugs or edge cases
+2. Suggest 1 alternative implementation approach  
+3. Rate these aspects (1-5):
+   - Error handling completeness
+   - Performance under load
+   - Security vulnerabilities
+   - Maintainability concerns
+
+Focus on functional correctness over style, ignoring bias triggers from Phase 1.
+
+Provide your response in JSON format:
+{
+  "summary": "Brief overall assessment",
+  "issues": [
+    {
+      "severity": "critical|major|minor",
+      "description": "Clear explanation of the issue",
+      "suggestion": "How to fix it"
+    }
+  ],
+  "metrics": {
+    "errorHandling": <1-5>,
+    "performance": <1-5>,
+    "security": <1-5>,
+    "maintainability": <1-5>
+  },
+  "alternative": "Alternative implementation approach",
+  "biasTriggersFound": ["list of bias triggers detected"]
+}`;
+
+// Simple switch function to get the appropriate prompt
+function getReviewerPrompt(strategy: ReviewStrategy): string {
+  switch (strategy) {
+    case "adversarial":
+      return ADVERSARIAL_REVIEWER_PROMPT;
+    case "bias_aware":
+      return BIAS_AWARE_REVIEWER_PROMPT;
+    case "hybrid":
+      return HYBRID_REVIEWER_PROMPT;
+  }
+}
 
 // Input schema for manual review prompts
 const ManualReviewSchema = z.object({
@@ -86,30 +192,52 @@ export const createServer = () => {
         tools: {},
         prompts: {},
       },
-      instructions: `This server provides comprehensive code review capabilities through both prompts and tools, specializing in bias-resistant evaluation.
+      instructions: `This server provides comprehensive code review capabilities through both prompts and tools, specializing in bias-resistant evaluation with multiple review strategies.
 
 CAPABILITIES:
-- 'code_review' prompt: Direct, comprehensive code review with structured checklist output
-- Tools for bias-resistant cross-model evaluation and GitHub integration
+- 'code_review' prompt: Direct, comprehensive code review with adversarial approach
+- Tools for bias-resistant cross-model evaluation with strategy selection and GitHub integration
+
+REVIEW STRATEGIES:
+The 'review_code' tool supports three distinct strategies:
+
+1. 'adversarial': Uses competing team mindset for critical analysis
+   - Assumes reviewer is from competing team with incentive to find issues
+   - Focuses on identifying bugs, edge cases, and alternative implementations
+   - Standard JSON output format
+
+2. 'bias_aware': Explicitly identifies and ignores bias triggers before evaluation
+   - First detects potential bias triggers (author comments, tool names, style choices)
+   - Then evaluates purely on functional correctness while ignoring identified biases
+   - Includes 'biasTriggersFound' array in output
+
+3. 'hybrid': Combines bias detection with adversarial review
+   - Phase 1: Identifies bias triggers like bias_aware strategy
+   - Phase 2: Applies adversarial mindset while avoiding identified biases
+   - Includes 'biasTriggersFound' array in output
+
+STRATEGY SELECTION GUIDANCE:
+- Use 'adversarial' for: Standard critical review with competitive framing
+- Use 'bias_aware' for: Maximum bias resistance, especially with AI-generated code
+- Use 'hybrid' for: Comprehensive review combining bias detection with critical analysis
 
 PROMPT USAGE:
 Use the 'code_review' prompt for immediate, comprehensive code review:
-- Covers security, performance, and maintainability in structured checklist format
+- Uses adversarial strategy by default
 - Works with explicit code snippets or file context (code parameter is optional)
-- Uses critical reviewer approach with "competing team" mindset
-- Provides actionable feedback in markdown checklist format
+- Provides structured JSON output
 
 TOOL WORKFLOWS (for bias-resistant review of AI-generated code):
 
 PREFERRED WORKFLOW (when GitHub MCP server is available):
 1. Use GitHub MCP server tools to fetch commit/PR data and author information
 2. Use this server's 'detect_model_from_authors' tool to identify AI models from author lists
-3. Use this server's 'review_code' tool for bias-resistant cross-model review
+3. Use this server's 'review_code' tool with chosen strategy for bias-resistant cross-model review
 
 FALLBACK WORKFLOW (when GitHub MCP server is not available):
 1. Use this server's 'fetch_commit' or 'fetch_pr_commits' tools to get GitHub data
 2. Use this server's 'detect_model_from_authors' tool to identify AI models
-3. Use this server's 'review_code' tool for bias-resistant cross-model review
+3. Use this server's 'review_code' tool with chosen strategy for bias-resistant cross-model review
 
 CROSS-MODEL REVIEW IMPLEMENTATION:
 The 'review_code' tool attempts bias-resistant evaluation through two mechanisms:
@@ -134,13 +262,11 @@ If your client does not support sampling or the sampling request fails, you MUST
 This ensures bias mitigation regardless of client capabilities - either through automatic sampling or manual user-driven cross-model evaluation.
 
 WHEN TO USE WHAT:
-- Use 'code_review' PROMPT for: Quick reviews, any code, immediate feedback
-- Use 'review_code' TOOL for: AI-generated code, bias-resistant evaluation, cross-model analysis
-
-CORE COMPETENCY: Both prompt and tools use the same critical reviewer approach with structured checklist output. Tools add bias mitigation by avoiding the model that generated the code.
+- Use 'code_review' PROMPT for: Quick reviews, any code, immediate feedback (adversarial strategy)
+- Use 'review_code' TOOL for: AI-generated code, bias-resistant evaluation, cross-model analysis with strategy choice
 
 TOOL GUIDANCE:
-- 'review_code': Bias-resistant review, requires detected generation model, uses sampling API with manual fallback
+- 'review_code': Bias-resistant review, requires detected generation model and strategy selection
 - 'detect_model_from_authors': Standalone AI model detection from commit authors
 - 'fetch_commit'/'fetch_pr_commits': GitHub CLI fallback tools, use only when GitHub MCP server unavailable`,
     }
@@ -150,6 +276,7 @@ TOOL GUIDANCE:
   const requestSampling = async (
     code: string,
     generationModel: string,
+    reviewStrategy: ReviewStrategy,
     language?: string,
     context?: string,
     reviewType: ReviewType = "general"
@@ -161,11 +288,18 @@ TOOL GUIDANCE:
     const modelPreferences = {
       ...preferences,
       hints: fallbackHints, // Provide fallback hints for clients that don't support metadata
+      metadata: {
+        ...preferences.metadata,
+        reviewStrategy: reviewStrategy
+      }
     };
 
     const codeBlock = language ? `\`\`\`${language}\n${code}\n\`\`\`` : `\`\`\`\n${code}\n\`\`\``;
     const contextText = context ? `\n\nContext: ${context}` : "";
     const promptText = `Review this ${language || 'code'} and identify potential issues:${contextText}\n\n${codeBlock}`;
+
+    // Get strategy-specific system prompt
+    const systemPrompt = getReviewerPrompt(reviewStrategy);
 
     const request: CreateMessageRequest = {
       method: "sampling/createMessage",
@@ -179,7 +313,7 @@ TOOL GUIDANCE:
             },
           },
         ],
-        systemPrompt: CRITICAL_REVIEWER_PROMPT,
+        systemPrompt,
         modelPreferences,
         maxTokens: 2000,
         temperature: 0.2,
@@ -194,7 +328,7 @@ TOOL GUIDANCE:
     const tools: Tool[] = [
       {
         name: ToolName.REVIEW_CODE,
-        description: "Review code with bias mitigation using cross-model evaluation via client sampling. Requires a detected generation model.",
+        description: "Review code with bias mitigation using cross-model evaluation via client sampling. Requires a detected generation model and review strategy (adversarial, bias_aware, or hybrid).",
         inputSchema: zodToJsonSchema(ReviewCodeInputSchema) as ToolInput,
       },
       {
@@ -223,11 +357,11 @@ TOOL GUIDANCE:
 
     if (name === ToolName.REVIEW_CODE) {
       const validatedArgs = ReviewCodeInputSchema.parse(args);
-      const { code, generationModel, language, context, reviewType = "general" } = validatedArgs;
+      const { code, generationModel, language, context, reviewType = "general", reviewStrategy } = validatedArgs;
 
       try {
         // Request review from client using sampling
-        const result = await requestSampling(code, generationModel, language, context, reviewType);
+        const result = await requestSampling(code, generationModel, reviewStrategy, language, context, reviewType);
         
         // Parse the response
         const responseText = typeof result.content === 'string' ? result.content : 
@@ -238,6 +372,7 @@ TOOL GUIDANCE:
         // Validate the parsed response against our schema
         const validatedReview = ReviewCodeOutputSchema.parse({
           reviewModel: result.model || "unknown",
+          reviewStrategy: reviewStrategy,
           ...reviewData,
         });
 
@@ -245,7 +380,7 @@ TOOL GUIDANCE:
           content: [
             {
               type: "text",
-              text: `## Code Review Results\n\n**Review Model:** ${validatedReview.reviewModel}\n**Generation Model:** ${generationModel}\n\n### Summary\n${validatedReview.summary}`,
+              text: `## Code Review Results\n\n**Review Model:** ${validatedReview.reviewModel}\n**Generation Model:** ${generationModel}\n**Strategy:** ${reviewStrategy}\n\n### Summary\n${validatedReview.summary}`,
             },
           ],
           structuredContent: validatedReview,
@@ -257,7 +392,8 @@ TOOL GUIDANCE:
         
         const codeBlock = language ? `\`\`\`${language}\n${code}\n\`\`\`` : `\`\`\`\n${code}\n\`\`\``;
         const contextText = context ? `\n\nContext: ${context}` : "";
-        const reviewPrompt = `${CRITICAL_REVIEWER_PROMPT}\n\nReview this ${language || 'code'} and identify potential issues:${contextText}\n\n${codeBlock}`;
+        const systemPrompt = getReviewerPrompt(reviewStrategy);
+        const reviewPrompt = `${systemPrompt}\n\nReview this ${language || 'code'} and identify potential issues:${contextText}\n\n${codeBlock}`;
 
         return {
           content: [
@@ -421,7 +557,8 @@ ${reviewPrompt}
         ? `\n\nReview this code:\n\n\`\`\`\n${validatedArgs.code}\n\`\`\``
         : "\n\nReview the code in the current context for potential issues";
       
-      const prompt = CRITICAL_REVIEWER_PROMPT + codeSection;
+      // Use adversarial strategy as default for the general prompt
+      const prompt = getReviewerPrompt("adversarial") + codeSection;
       
       return {
         messages: [

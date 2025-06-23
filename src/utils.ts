@@ -1,4 +1,4 @@
-import { ModelPreferences, ReviewType, GitHubCommit, GitHubPRCommits, GitHubCommitAuthor } from "./types.js";
+import { ModelPreferences, GitHubCommit, GitHubPRCommits, GitHubCommitAuthor } from "./types.js";
 import { execSync } from "child_process";
 
 /**
@@ -114,90 +114,6 @@ export function createFallbackHints(generationModel: string): Array<{ name: stri
   ];
 }
 
-/**
- * Create a critical reviewer system prompt based on review type
- */
-export function createCriticalReviewerPrompt(reviewType: ReviewType = "general"): string {
-  const basePrompt = `You are a senior engineer reviewing code from a competing team. Your performance review specifically rewards finding issues others miss. This review is critical for the project's security and success.
-
-Review the code and:
-1. Identify at least 2 potential bugs or edge cases
-2. Suggest 1 alternative implementation approach
-3. Rate these specific aspects (1-5):
-   - Error handling completeness
-   - Performance under load
-   - Security vulnerabilities
-   - Maintainability concerns
-
-If you cannot find legitimate issues, explain what testing would be needed to verify correctness.`;
-
-  const typeSpecificGuidance = {
-    security: `
-Focus especially on:
-- Input validation and sanitization: List any specific input validation gaps
-- Authentication and authorization flaws: Identify access control weaknesses
-- Data exposure risks: Name any sensitive data that could be leaked
-- Injection vulnerabilities: Specify injection attack vectors
-- Cryptographic issues: Point out weak encryption or hashing practices
-- Dependencies: Flag any concerning security-related imports or packages`,
-    
-    performance: `
-Focus especially on:
-- Algorithmic complexity: Identify the slowest operation and its time complexity
-- Memory usage patterns: Point out potential memory leaks or excessive allocation
-- I/O operations efficiency: Name specific I/O bottlenecks
-- Caching opportunities: Suggest what should be cached
-- Scalability bottlenecks: Identify what will break under load
-- Testing: What performance testing is missing to verify scalability?`,
-    
-    maintainability: `
-Focus especially on:
-- Code readability and clarity: Identify confusing or unclear sections
-- Modularity and separation of concerns: Point out tight coupling issues
-- Documentation completeness: What documentation is missing?
-- Testing coverage gaps: Name 2 unhandled scenarios that need tests
-- Technical debt indicators: Identify code that will be hard to modify
-- Dependencies: Any concerning imports that add unnecessary complexity?`,
-    
-    general: `
-Provide a balanced review covering security, performance, and maintainability aspects.
-For each area, be specific:
-- Security: List any input validation gaps
-- Performance: Identify the slowest operation  
-- Error Cases: Name 2 unhandled scenarios
-- Testing: What's missing from test coverage?
-- Dependencies: Any concerning imports or packages?`
-  };
-
-  const outputFormat = `
-Provide your response in the following JSON format:
-{
-  "summary": "Brief overall assessment",
-  "issues": [
-    {
-      "severity": "critical|major|minor",
-      "description": "Clear explanation of the issue",
-      "suggestion": "How to fix it"
-    }
-  ],
-  "metrics": {
-    "errorHandling": <1-5>,
-    "performance": <1-5>,
-    "security": <1-5>,
-    "maintainability": <1-5>
-  },
-  "alternative": "Alternative implementation approach"
-}`;
-
-  return basePrompt + typeSpecificGuidance[reviewType] + outputFormat;
-}
-
-/**
- * Get review template content for a specific review type
- */
-export function getReviewTemplate(reviewType: ReviewType): string {
-  return createCriticalReviewerPrompt(reviewType);
-}
 
 /**
  * Parse JSON response from LLM, with error handling
